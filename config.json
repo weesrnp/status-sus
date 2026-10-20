@@ -1,0 +1,26 @@
+{
+  "server": {
+    "port": 8765,
+    "host": "0.0.0.0",
+    "pollIntervalMs": 30000
+  },
+  "customEndpoints": [
+    {
+      "id": "custom-pec-local",
+      "name": "e-SUS PEC Local (Prontuário Municipal)",
+      "shortName": "PEC Local (Exemplo)",
+      "layer": "municipal_custom",
+      "layerLabel": "5. Instâncias Municipais & Serviços Locais (Configurável)",
+      "protocol": "TCP / PostgreSQL",
+      "type": "Servidor Local",
+      "url": "tcp://127.0.0.1:5433",
+      "tcpHost": "127.0.0.1",
+      "tcpPort": 5433,
+      "expectedCodes": [200],
+      "warnLatencyMs": 200,
+      "clinicalImpact": "Exemplo de monitoramento do banco PostgreSQL do e-SUS PEC local ou servidor da Secretaria Municipal de Saúde.",
+      "recoveryHint": "Edite este endpoint no config.json para apontar para o IP da sua rede interna.",
+      "enabled": false
+    }
+  ]
+}

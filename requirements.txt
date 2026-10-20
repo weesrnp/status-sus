@@ -1,0 +1,6 @@
+# Status SUS não requer bibliotecas de terceiros para o runtime principal.
+# Todo o backend roda sobre a biblioteca padrão do Python 3.10+ (http.server, concurrent.futures, urllib, ssl, socket).
+#
+# Para desenvolvimento ou linters opcionais:
+# ruff>=0.6.0
+# mypy>=1.11.0

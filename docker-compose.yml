@@ -1,0 +1,17 @@
+services:
+  status-sus:
+    build: .
+    container_name: status-sus
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    environment:
+      - STATUS_SUS_PORT=8765
+    volumes:
+      - ./config.json:/app/config.json:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8765/api/status', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
