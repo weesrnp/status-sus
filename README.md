@@ -1,15 +1,25 @@
 # Status SUS
 
-> **O e-SUS caiu? Saiba o status em tempo real do e-SUS, CADSUS, RNDS e Gov.br**
+> **O SUS caiu? Status em tempo real do e-SUS, CADSUS, RNDS e Gov.br
 
+[![Online Demo](https://img.shields.io/badge/Demo%20Online-status--sus.vercel.app-black.svg?logo=vercel)](https://status-sus.vercel.app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](LICENSE)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Docker: Ready](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](#-execu%C3%A7%C3%A3o-via-docker)
+[![Docker: Ready](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](#-op%C3%A7%C3%A3o-3-execu%C3%A7%C3%A3o-via-docker--docker-compose)
 [![Dependencies: Zero](https://img.shields.io/badge/Dependencies-Zero%20(Standard%20Library)-sky.svg)](#-stack-tecnol%C3%B3gica)
 
-O **Status SUS** é uma aplicação de observabilidade independente, leve e de código aberto voltada para secretarias de saúde, gestores do SUS, equipes de TI municipal e desenvolvedores de prontuários eletrônicos (e-SUS PEC e ERPs).
+O **Status SUS** é uma aplicação de observabilidade aberta e leve para secretarias de saúde, gestores do SUS, equipes de TI municipal e desenvolvedores de prontuários eletrônicos (e-SUS PEC e ERPs).
 
-Monitora em tempo real a latência, códigos de resposta HTTP/SOAP, status de gateways criptográficos e a disponibilidade dos principais serviços digitais de saúde do Brasil.
+---
+
+### 🌐 Como Utilizar: Online vs Local
+
+Você pode utilizar o Status SUS de duas formas:
+
+1. **Acesso Online (Sem Instalação):**  
+   Acesse diretamente pelo navegador em **[status-sus.vercel.app](https://status-sus.vercel.app)**. Perfeito para médicos, enfermeiros, recepcionistas e gestores consultarem rapidamente pelo computador do consultório ou pelo celular se a instabilidade é geral no Ministério da Saúde.
+2. **Execução Local / Auto-Hospedada (Na Rede da Secretaria ou UBS):**  
+   Execute o projeto localmente com Python ou Docker na rede interna. Permite plugar via `config.json` o monitoramento da sua própria instância do e-SUS PEC (PostgreSQL local), sistemas de prontuário municipais e links de rede dedicados.
 
 ---
 

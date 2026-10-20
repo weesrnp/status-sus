@@ -24,7 +24,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 BASE_DIR = Path(__file__).resolve().parent
-STATIC_DIR = BASE_DIR / "static"
+STATIC_DIR = BASE_DIR / "public" if (BASE_DIR / "public").exists() else BASE_DIR / "static"
 CONFIG_FILE = BASE_DIR / "config.json"
 PORT = int(os.environ.get("STATUS_SUS_PORT", os.environ.get("PORT", "8765")))
 

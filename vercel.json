@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "regions": ["gru1"],
+  "rewrites": [
+    {
+      "source": "/api/probe/(.*)",
+      "destination": "/api/probe.py?id=$1"
+    }
+  ]
+}
