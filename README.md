@@ -1,6 +1,6 @@
 # Status SUS
 
-> **Painel de Observabilidade, Telemetria e Disponibilidade de Barramentos de Saúde Pública (DATASUS / Ministério da Saúde / Gov.br)**
+> **O e-SUS caiu? Saiba o status em tempo real do e-SUS, CADSUS, RNDS e Gov.br**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](LICENSE)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
