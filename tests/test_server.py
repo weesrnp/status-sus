@@ -295,5 +295,31 @@ class RateLimitTests(OfflineTestCase):
             refresh.assert_called_once_with()
 
 
+class VercelRouteTests(unittest.TestCase):
+    """Formas de caminho que a Vercel entrega às funções em api/."""
+
+    def setUp(self):
+        from api._common import resolve_route
+        self.resolve = resolve_route
+
+    def test_probe_path_with_id_segment(self):
+        self.assertEqual(self.resolve("/api/probe/sisab-portal"), ("probe", "sisab-portal"))
+
+    def test_probe_rewritten_to_query_string(self):
+        self.assertEqual(self.resolve("/api/probe?id=sisab-portal"), ("probe", "sisab-portal"))
+        self.assertEqual(self.resolve("/api/probe.py?id=sisab-portal"), ("probe", "sisab-portal"))
+
+    def test_probe_endpoint_without_id_keeps_empty_id(self):
+        self.assertEqual(self.resolve("/", endpoint="probe"), ("probe", ""))
+
+    def test_status_routes_and_force_flag(self):
+        self.assertEqual(self.resolve("/api/status"), ("status", ""))
+        self.assertEqual(self.resolve("/api/status?force=1"), ("status", "1"))
+        self.assertEqual(self.resolve("/", endpoint="status"), ("status", ""))
+
+    def test_unknown_path_is_index(self):
+        self.assertEqual(self.resolve("/api"), ("index", ""))
+
+
 if __name__ == "__main__":
     unittest.main()
