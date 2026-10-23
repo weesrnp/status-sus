@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-23 — Correção: sondagem individual na Vercel
+
+PR [#2](https://github.com/weesrnp/status-sus/pull/2), branch `fix/vercel-probe-route`.
+
+Depois do deploy do PR #1, o teste em produção mostrou que `/api/probe/<id>` respondia sempre com a mensagem genérica do `api/index.py` ("status": "online"), sem sondar o serviço. Inclusive um id inexistente recebia `200` em vez de `404`.
+
+- **Causa:** o handler só reconhecia a sondagem quando o caminho continha `/probe/`. Depois do rewrite do `vercel.json`, a Vercel entrega o caminho como `/api/probe?id=<id>`, sem a barra final. O código original tinha o mesmo teste, então o defeito já existia antes da revisão.
+- **Impacto:** o botão "Verificar agora" da gaveta substituía a linha do serviço pelo JSON genérico.
+- **Correção:** a escolha da rota foi para uma função `resolve_route` em `api/_common.py`, que aceita `/api/probe/<id>`, `/api/probe?id=<id>` e `/api/probe.py?id=<id>`. O frontend também passou a descartar respostas de sondagem cujo `id` não seja o do serviço pedido.
+- **Testes:** 5 novos testes de rota (33 no total).
+
 ## 2026-10-23 — Revisão geral: UI minimalista, cache no backend e testes
 
 PR [#1](https://github.com/weesrnp/status-sus/pull/1), branch `refactor/ui-minimalista`.

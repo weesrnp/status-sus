@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Handlers compartilhados pelas funções Vercel."""
 
+from __future__ import annotations
+
 from http.server import BaseHTTPRequestHandler
 import json
 import sys
@@ -18,22 +20,36 @@ except Exception as exc:
     _import_error = str(exc)
 
 
+def resolve_route(raw_path: str, endpoint: str | None = None) -> tuple[str, str]:
+    """Identifica a rota pedida, seja qual for a forma que a Vercel entrega o caminho.
+
+    Depois do rewrite do vercel.json a função pode receber "/api/probe/<id>",
+    "/api/probe?id=<id>" ou "/api/probe.py?id=<id>"; todas precisam chegar à sondagem.
+    """
+    parsed = urlparse(raw_path)
+    qs = parse_qs(parsed.query)
+    path = parsed.path.rstrip("/")
+    if endpoint == "probe" or "/probe" in path:
+        svc_id = qs.get("id", [""])[0]
+        if not svc_id and "/probe/" in path:
+            svc_id = path.split("/probe/", 1)[1].strip("/")
+        return "probe", svc_id
+    if endpoint == "status" or path.endswith("/status") or path.endswith("/status.py"):
+        return "status", "1" if qs.get("force", ["0"])[0] == "1" else ""
+    return "index", ""
+
+
 class APIHandler(BaseHTTPRequestHandler):
     endpoint = None
 
     def do_GET(self):
         if server is None:
             return self._send_json({"error": "Erro ao carregar módulo do servidor", "detail": _import_error}, 500)
-        parsed = urlparse(self.path)
-        qs = parse_qs(parsed.query)
-        if self.endpoint == "status" or parsed.path.endswith("/status"):
-            return self._send_json(*server.get_status(
-                force=qs.get("force", ["0"])[0] == "1", serverless=True))
-        if self.endpoint == "probe" or "/probe/" in parsed.path:
-            svc_id = qs.get("id", [""])[0]
-            if not svc_id and "/probe/" in parsed.path:
-                svc_id = parsed.path.split("/probe/", 1)[1].strip("/")
-            return self._send_json(*server.get_probe(svc_id))
+        route, arg = resolve_route(self.path, self.endpoint)
+        if route == "status":
+            return self._send_json(*server.get_status(force=arg == "1", serverless=True))
+        if route == "probe":
+            return self._send_json(*server.get_probe(arg))
         return self._send_json({
             "service": "Status SUS API (Vercel Serverless)",
             "status": "online",

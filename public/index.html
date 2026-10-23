@@ -820,6 +820,7 @@
         const res = await fetch(`/api/probe/${encodeURIComponent(id)}`, { cache: 'no-store' });
         const updated = await res.json();
         if (!res.ok) throw new Error(updated.error || `HTTP ${res.status}`);
+        if (updated.id !== id) throw new Error('Resposta inesperada da API de sondagem');
         const idx = SNAPSHOT.services.findIndex(s => s.id === id);
         if (idx !== -1) SNAPSHOT.services[idx] = updated;
         render();
