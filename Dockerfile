@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Copia arquivos do projeto
 COPY server.py config.json ./
-COPY static/ ./static/
+COPY public/ ./public/
 
 # Configurações de ambiente
 ENV PYTHONUNBUFFERED=1 \

@@ -9,6 +9,8 @@ e serviços de Atenção Primária à Saúde (Centralizador e-SUS, SISAB, e-Gest
 
 from __future__ import annotations
 import concurrent.futures
+import copy
+import threading
 import datetime
 import json
 import os
@@ -18,15 +20,35 @@ import ssl
 import time
 import urllib.error
 import urllib.request
+import xml.etree.ElementTree as ET
 from collections import deque
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 BASE_DIR = Path(__file__).resolve().parent
-STATIC_DIR = BASE_DIR / "public" if (BASE_DIR / "public").exists() else BASE_DIR / "static"
+STATIC_DIR = BASE_DIR / "public"
 CONFIG_FILE = BASE_DIR / "config.json"
-PORT = int(os.environ.get("STATUS_SUS_PORT", os.environ.get("PORT", "8765")))
+
+def load_config() -> dict:
+    try:
+        return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"[Aviso] Falha ao ler config.json: {exc}")
+        return {}
+
+CONFIG = load_config()
+SERVER_CONFIG = CONFIG.get("server", {})
+PORT = int(os.environ.get("STATUS_SUS_PORT", os.environ.get("PORT", SERVER_CONFIG.get("port", 8765))))
+HOST = SERVER_CONFIG.get("host", "0.0.0.0")
+POLL_INTERVAL_MS = max(1, int(SERVER_CONFIG.get("pollIntervalMs", 30000)))
+SNAPSHOT_TTL_S = 30
+FORCE_MIN_INTERVAL_S = 10
+STATE_LOCK = threading.RLock()
+SCAN_LOCK = threading.Lock()
+LAST_SCAN_AT = None
+LAST_FORCE_AT = None
+
 
 # Catálogo Canônico de Barramentos Nacionais de Saúde Pública (DATASUS / MS / Gov.br)
 CORE_SERVICES_CATALOG = [
@@ -254,16 +276,9 @@ CORE_SERVICES_CATALOG = [
 def load_services_catalog() -> list[dict]:
     """Carrega o catálogo padrão e mescla endpoints customizados do config.json se existirem."""
     services = list(CORE_SERVICES_CATALOG)
-    if CONFIG_FILE.exists():
-        try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-                customs = cfg.get("customEndpoints", [])
-                for c in customs:
-                    if c.get("enabled", True):
-                        services.append(c)
-        except Exception as e:
-            print(f"[Aviso] Falha ao ler config.json: {e}")
+    for custom in CONFIG.get("customEndpoints", []):
+        if custom.get("enabled", True):
+            services.append(custom)
     return services
 
 SERVICES_CATALOG = load_services_catalog()
@@ -275,40 +290,21 @@ HISTORY_STORE: dict[str, deque] = {
 
 LATEST_SNAPSHOT: dict = {
     "updatedAt": None,
+    "updatedAtIso": None,
+    "ttlSeconds": max(1, (POLL_INTERVAL_MS + 999) // 1000),
+    "forceThrottled": False,
     "scanDurationMs": 0,
     "centralizadorMeta": {
-        "version": "5.7.36",
-        "buildDateRaw": "2026-10-07_20-27-56",
-        "buildDateFormatted": "07/10/2026 20:27:56",
-        "serverHeader": "JBoss-EAP/7 (Undertow/1)",
-        "f5BigIpPool": "BIGipServeresus_prod"
+        "version": None,
+        "buildDateRaw": None,
+        "buildDateFormatted": None,
+        "serverHeader": None,
+        "f5BigIpPool": None
     },
     "services": [],
     "diagnostics": [],
     "summary": {}
 }
-
-def seed_initial_history():
-    """Inicializa histórico para alimentar as barras de SLA desde o primeiro carregamento."""
-    now = time.time()
-    for s in SERVICES_CATALOG:
-        base_lat = 420
-        if "digisus" in s["id"]:
-            base_lat = 1600
-        elif "cadsus-web" in s["id"]:
-            base_lat = 1200
-        elif "rnds-ehr-auth" in s["id"]:
-            base_lat = 380
-
-        for i in range(12, 0, -1):
-            jitter = ((hash(s["id"] + str(i)) % 80) - 35)
-            lat = max(25, base_lat + jitter)
-            HISTORY_STORE[s["id"]].append({
-                "ts": datetime.datetime.fromtimestamp(now - i * 60).strftime("%H:%M:%S"),
-                "status": "operational",
-                "latencyMs": lat,
-                "httpCode": 401 if "mtls" in s["id"] else 200
-            })
 
 def probe_single_service(svc: dict) -> dict:
     """Executa checagem HTTP/HTTPS ou TCP Socket real e extrai telemetria oficial."""
@@ -330,9 +326,9 @@ def probe_single_service(svc: dict) -> dict:
         "latencyMs": 0,
         "status": "outage",
         "statusLabel": "INDISPONÍVEL",
-        "serverHeader": "N/A",
+        "serverHeader": None,
         "headers": {},
-        "extraMeta": {},
+        "extraMeta": {key: None for key in ("version", "buildDateRaw", "buildDateFormatted", "serverHeader", "f5BigIpPool")} if svc.get("extractVersion") else {},
         "error": None,
     }
 
@@ -364,7 +360,7 @@ def probe_single_service(svc: dict) -> dict:
     req = urllib.request.Request(
         svc["url"],
         headers={
-            "User-Agent": "StatusSUS-Monitor/2.0 (+https://github.com/open-sus/status-sus)",
+            "User-Agent": "StatusSUS-Monitor/2.0 (+https://github.com/weesrnp/status-sus)",
             "Accept": "text/html,application/xhtml+xml,application/xml,application/json;q=0.9,*/*;q=0.8",
             "Cache-Control": "no-cache"
         },
@@ -381,7 +377,7 @@ def probe_single_service(svc: dict) -> dict:
             result["httpCode"] = code
             result["latencyMs"] = elapsed
             result["headers"] = headers_dict
-            result["serverHeader"] = headers_dict.get("Server") or headers_dict.get("X-Powered-By") or "Gateway HTTPS"
+            result["serverHeader"] = headers_dict.get("Server") or headers_dict.get("X-Powered-By") or None
     except urllib.error.HTTPError as http_err:
         elapsed = int((time.perf_counter() - t0) * 1000)
         result["httpCode"] = http_err.code
@@ -389,7 +385,7 @@ def probe_single_service(svc: dict) -> dict:
         if http_err.headers:
             headers_dict = {k: v for k, v in http_err.headers.items()}
             result["headers"] = headers_dict
-            result["serverHeader"] = headers_dict.get("Server") or headers_dict.get("X-Powered-By") or "Gateway HTTPS"
+            result["serverHeader"] = headers_dict.get("Server") or headers_dict.get("X-Powered-By") or None
         try:
             body_bytes = http_err.read(4096)
         except Exception:
@@ -424,39 +420,57 @@ def probe_single_service(svc: dict) -> dict:
         result["statusLabel"] = f"ERRO HTTP {code}"
 
     # Extração de Metadados: Versão e Build do Centralizador Nacional e-SUS APS
-    if svc.get("extractVersion") and body_bytes:
+    if svc.get("extractVersion"):
         text = body_bytes.decode("utf-8", errors="ignore")
         ver_match = re.search(r"Vers(?:&atilde;|ã)o:\s*</font>\s*<font[^>]*>([^<]+)</font>", text, re.I)
         date_match = re.search(r'id="build-date"[^>]*>([^<]+)</font>', text, re.I)
-        version_str = ver_match.group(1).strip() if ver_match else "5.7.36"
-        build_raw = date_match.group(1).strip() if date_match else "2026-10-07_20-27-56"
+        version_str = ver_match.group(1).strip() if ver_match else None
+        build_raw = date_match.group(1).strip() if date_match else None
         build_fmt = build_raw
-        if "_" in build_raw:
+        if build_raw and "_" in build_raw:
             parts = build_raw.split("_")
             dparts = parts[0].split("-")
             if len(dparts) == 3:
                 build_fmt = f"{dparts[2]}/{dparts[1]}/{dparts[0]} às {parts[1].replace('-', ':')}"
         set_cookie = result["headers"].get("Set-Cookie", "")
-        pool_name = "BIGipServeresus_prod" if "BIGipServeresus_prod" in set_cookie else "F5-BIG-IP"
+        pool_match = re.search(r"(?:^|[;,]\s*)(BIGipServer[^=;\s]+)=", set_cookie)
+        pool_name = pool_match.group(1) if pool_match else None
         meta = {
             "version": version_str,
             "buildDateRaw": build_raw,
             "buildDateFormatted": build_fmt,
-            "serverHeader": f"{result['headers'].get('Server', 'JBoss-EAP/7')} ({result['headers'].get('X-Powered-By', 'Undertow/1')})",
+            "serverHeader": result["serverHeader"],
             "f5BigIpPool": pool_name
         }
         result["extraMeta"] = meta
-        result["statusLabel"] = f"ONLINE (v{version_str})"
-        LATEST_SNAPSHOT["centralizadorMeta"] = meta
+        if version_str and result["status"] == "operational":
+            result["statusLabel"] = f"ONLINE (v{version_str})"
 
     # Validação do Contrato WSDL do Barramento SOA-CADSUS
     if svc.get("validateWsdl") and body_bytes:
         text = body_bytes.decode("utf-8", errors="ignore")
-        has_wsdl = ("definitions" in text.lower()) and ("cadsusservice" in text.lower())
+        try:
+            root = ET.fromstring(text)
+            has_wsdl = root.tag == "{http://schemas.xmlsoap.org/wsdl/}definitions" and any(
+                element.tag == "{http://schemas.xmlsoap.org/wsdl/}service" and
+                "cadsusservice" in element.get("name", "").lower() for element in root.iter())
+            operations = sorted({element.get("name") for element in root.iter()
+                                 if element.tag == "{http://schemas.xmlsoap.org/wsdl/}operation" and element.get("name")})
+        except ET.ParseError:
+            # The response is capped at 12 KB; validate its root even if truncated.
+            root_start = re.match(r"\s*(?:<\?xml[^>]*>\s*)?(<(?:[\w.-]+:)?definitions\b[^>]*>)", text)
+            has_wsdl = False
+            if root_start and len(body_bytes) >= 12288:
+                try:
+                    opening = root_start.group(1).rstrip(">/") + "/>"
+                    has_wsdl = ET.fromstring(opening).tag == "{http://schemas.xmlsoap.org/wsdl/}definitions"
+                except ET.ParseError:
+                    pass
+            operations = []
         result["extraMeta"] = {
             "wsdlValid": has_wsdl,
-            "serviceContract": "CadsusService v5r0 (SOAP 1.1 / 1.2)",
-            "operations": "pesquisar, consultar, cadastrar, atualizar" if has_wsdl else "N/A"
+            "serviceContract": "CadsusService" if has_wsdl else None,
+            "operations": ", ".join(operations) if has_wsdl and operations else None
         }
         if has_wsdl and result["status"] == "operational":
             result["statusLabel"] = "WSDL VÁLIDO"
@@ -465,19 +479,20 @@ def probe_single_service(svc: dict) -> dict:
     return result
 
 def _record_history(service_id: str, result: dict):
-    if service_id not in HISTORY_STORE:
-        HISTORY_STORE[service_id] = deque(maxlen=30)
-    hist = HISTORY_STORE[service_id]
-    hist.append({
-        "ts": result["checkedAt"],
-        "status": result["status"],
-        "latencyMs": result["latencyMs"],
-        "httpCode": result["httpCode"]
-    })
-    total = len(hist)
-    up_count = sum(1 for h in hist if h["status"] in ("operational", "mtls", "degraded"))
-    result["uptimePct"] = round((up_count / total) * 100, 1) if total else 100.0
-    result["history"] = list(hist)
+    with STATE_LOCK:
+        if service_id not in HISTORY_STORE:
+            HISTORY_STORE[service_id] = deque(maxlen=30)
+        hist = HISTORY_STORE[service_id]
+        hist.append({
+            "ts": result["checkedAt"],
+            "status": result["status"],
+            "latencyMs": result["latencyMs"],
+            "httpCode": result["httpCode"]
+        })
+        total = len(hist)
+        up_count = sum(1 for h in hist if h["status"] in ("operational", "mtls", "degraded"))
+        result["uptimePct"] = round((up_count / total) * 100, 1) if total else None
+        result["history"] = list(hist)
 
 def build_intelligent_diagnostics(services_map: dict[str, dict]) -> list[dict]:
     """Cruza status de portais de interface humana vs barramentos de máquina (M2M)."""
@@ -517,15 +532,15 @@ def build_intelligent_diagnostics(services_map: dict[str, dict]) -> list[dict]:
     # 2. Diagnóstico Transmissão e-SUS APS
     cent = services_map.get("esus-centralizador-nacional", {})
     cent_ok = cent.get("status") in ("operational", "degraded")
-    ver = LATEST_SNAPSHOT["centralizadorMeta"].get("version", "5.7.36")
-    bdate = LATEST_SNAPSHOT["centralizadorMeta"].get("buildDateFormatted", "07/10/2026")
+    ver = cent.get("extraMeta", {}).get("version")
+    bdate = cent.get("extraMeta", {}).get("buildDateFormatted")
 
     if cent_ok:
         diags.append({
             "id": "diag-centralizador",
-            "title": f"Recepção de Lotes da Atenção Primária (Centralizador v{ver})",
+            "title": "Recepção de Lotes da Atenção Primária" + (f" (Centralizador v{ver})" if ver else ""),
             "severity": "operational",
-            "badge": f"BUILD {bdate.split(' ')[0]}",
+            "badge": f"BUILD {bdate.split(' ')[0]}" if bdate else "RESPONDENDO",
             "summary": f"O endpoint nacional esusab.saude.gov.br respondeu com sucesso em {cent.get('latencyMs', 0)}ms. O envio de dados da atenção primária está aberto."
         })
     else:
@@ -560,7 +575,13 @@ def build_intelligent_diagnostics(services_map: dict[str, dict]) -> list[dict]:
     return diags
 
 def run_full_scan() -> dict:
+    with SCAN_LOCK:
+        return _run_full_scan()
+
+
+def _run_full_scan() -> dict:
     """Executa varredura concorrente de todos os serviços cadastrados."""
+    global LAST_SCAN_AT
     t_start = time.perf_counter()
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
@@ -569,7 +590,8 @@ def run_full_scan() -> dict:
             try:
                 results.append(fut.result())
             except Exception as exc:
-                results.append({"id": future_map[fut], "status": "outage", "error": str(exc)})
+                results.append({"id": future_map[fut], "status": "outage", "error": str(exc),
+                                "history": [], "uptimePct": None, "latencyMs": 0})
 
     order_index = {svc["id"]: idx for idx, svc in enumerate(SERVICES_CATALOG)}
     results.sort(key=lambda r: order_index.get(r.get("id", ""), 999))
@@ -582,13 +604,20 @@ def run_full_scan() -> dict:
     degraded_cnt = sum(1 for r in results if r["status"] == "degraded")
     outage_cnt = sum(1 for r in results if r["status"] == "outage")
 
-    valid_latencies = [r["latencyMs"] for r in results if r["latencyMs"] > 0 and r["status"] != "outage"]
+    valid_latencies = [r["latencyMs"] for r in results if r.get("latencyMs", 0) > 0 and r["status"] != "outage"]
     avg_latency = int(sum(valid_latencies) / len(valid_latencies)) if valid_latencies else 0
     scan_duration = int((time.perf_counter() - t_start) * 1000)
     now_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
-    LATEST_SNAPSHOT.update({
+    snapshot = {
         "updatedAt": now_str,
+        "updatedAtIso": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "ttlSeconds": max(1, (POLL_INTERVAL_MS + 999) // 1000),
+        "forceThrottled": False,
+        "centralizadorMeta": {
+            key: services_map.get("esus-centralizador-nacional", {}).get("extraMeta", {}).get(key)
+            for key in ("version", "buildDateRaw", "buildDateFormatted", "serverHeader", "f5BigIpPool")
+        },
         "scanDurationMs": scan_duration,
         "services": results,
         "diagnostics": diagnostics,
@@ -597,11 +626,66 @@ def run_full_scan() -> dict:
             "operational": operational_cnt,
             "degraded": degraded_cnt,
             "outage": outage_cnt,
-            "healthScorePct": round(((operational_cnt + degraded_cnt * 0.5) / total) * 100, 1) if total else 100.0,
+            "healthScorePct": round(((operational_cnt + degraded_cnt * 0.5) / total) * 100, 1) if total else None,
             "avgLatencyMs": avg_latency
         }
-    })
-    return LATEST_SNAPSHOT
+    }
+    with STATE_LOCK:
+        LATEST_SNAPSHOT.update(snapshot)
+        LAST_SCAN_AT = time.monotonic()
+        return copy.deepcopy(LATEST_SNAPSHOT)
+
+
+def get_status(force: bool = False, serverless: bool = False) -> tuple[dict, int]:
+    global LAST_FORCE_AT
+    with STATE_LOCK:
+        now = time.monotonic()
+        if force:
+            if LAST_FORCE_AT is not None and now - LAST_FORCE_AT < FORCE_MIN_INTERVAL_S:
+                snapshot = copy.deepcopy(LATEST_SNAPSHOT)
+                snapshot["forceThrottled"] = True
+                snapshot["ttlSeconds"] = SNAPSHOT_TTL_S if serverless else max(1, (POLL_INTERVAL_MS + 999) // 1000)
+                return snapshot, 200
+            LAST_FORCE_AT = now
+        stale = LAST_SCAN_AT is None or now - LAST_SCAN_AT > SNAPSHOT_TTL_S
+    if force:
+        run_full_scan()
+    elif serverless and stale:
+        # Recheck after the lock: concurrent requests share the completed scan.
+        with SCAN_LOCK:
+            with STATE_LOCK:
+                stale = LAST_SCAN_AT is None or time.monotonic() - LAST_SCAN_AT > SNAPSHOT_TTL_S
+            if stale:
+                _run_full_scan()
+    with STATE_LOCK:
+        snapshot = copy.deepcopy(LATEST_SNAPSHOT)
+        snapshot["forceThrottled"] = False
+        snapshot["ttlSeconds"] = SNAPSHOT_TTL_S if serverless else max(1, (POLL_INTERVAL_MS + 999) // 1000)
+        return snapshot, 200
+
+
+def get_probe(service_id: str) -> tuple[dict, int]:
+    target = next((s for s in SERVICES_CATALOG if s["id"] == service_id), None)
+    if not target:
+        return {"error": f"Serviço '{service_id}' não encontrado."}, 404
+    result = probe_single_service(target)
+    with STATE_LOCK:
+        for idx, item in enumerate(LATEST_SNAPSHOT["services"]):
+            if item["id"] == service_id:
+                LATEST_SNAPSHOT["services"][idx] = result
+                break
+    return result, 200
+
+
+def scan_loop(stop_event: threading.Event):
+    while not stop_event.is_set():
+        started = time.monotonic()
+        try:
+            run_full_scan()
+        except Exception as exc:
+            print(f"[Aviso] Falha na varredura: {exc}")
+        stop_event.wait(max(0, POLL_INTERVAL_MS / 1000 - (time.monotonic() - started)))
+
 
 class StatusSUSHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -627,21 +711,11 @@ class StatusSUSHandler(SimpleHTTPRequestHandler):
 
         if path == "/api/status":
             force = qs.get("force", ["0"])[0] == "1"
-            if force or not LATEST_SNAPSHOT["updatedAt"]:
-                run_full_scan()
-            return self._send_json(LATEST_SNAPSHOT)
+            return self._send_json(*get_status(force=force))
 
         if path.startswith("/api/probe/"):
             svc_id = path.split("/api/probe/", 1)[1].strip("/")
-            target = next((s for s in SERVICES_CATALOG if s["id"] == svc_id), None)
-            if not target:
-                return self._send_json({"error": f"Serviço '{svc_id}' não encontrado."}, 404)
-            res = probe_single_service(target)
-            for idx, item in enumerate(LATEST_SNAPSHOT["services"]):
-                if item["id"] == svc_id:
-                    LATEST_SNAPSHOT["services"][idx] = res
-                    break
-            return self._send_json(res)
+            return self._send_json(*get_probe(svc_id))
 
         if path == "/" or path == "/index.html":
             self.path = "/index.html"
@@ -649,20 +723,19 @@ class StatusSUSHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
 def main():
-    seed_initial_history()
-    print(f"[Status SUS] Iniciando sondagem de {len(SERVICES_CATALOG)} barramentos...")
-    snap = run_full_scan()
-    print(
-        f"[Status SUS] Pronto em {snap['scanDurationMs']}ms — "
-        f"{snap['summary']['operational']}/{snap['summary']['total']} operacionais | "
-        f"Centralizador e-SUS v{snap['centralizadorMeta']['version']}"
-    )
-    server = ThreadingHTTPServer(("0.0.0.0", PORT), StatusSUSHandler)
-    print(f"[Status SUS] Servidor HTTP operando em http://localhost:{PORT}")
+    server = ThreadingHTTPServer((HOST, PORT), StatusSUSHandler)
+    stop_event = threading.Event()
+    scanner = threading.Thread(target=scan_loop, args=(stop_event,), daemon=True)
+    scanner.start()
+    print(f"[Status SUS] Servidor HTTP operando em http://{HOST}:{PORT}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
+        pass
+    finally:
+        stop_event.set()
         server.server_close()
+        scanner.join(timeout=6)
 
 if __name__ == "__main__":
     main()
