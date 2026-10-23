@@ -1,479 +1,645 @@
 <!DOCTYPE html>
-<html lang="pt-BR" class="dark">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Status SUS — Painel de Disponibilidade e Telemetria de Barramentos Públicos</title>
-  
-  <!-- Fontes profissionais: Inter para interface e JetBrains Mono para telemetria -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-
-  <!-- Tailwind CSS CDN com paleta sóbria de observabilidade -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['"Inter"', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
-            mono: ['"JetBrains Mono"', 'monospace'],
-          },
-          colors: {
-            zinc: {
-              950: '#090a0f',
-              900: '#0f121a',
-              850: '#141824',
-              800: '#1c2233',
-              700: '#2d374e',
-            }
-          }
-        }
-      }
-    };
-  </script>
+  <title>Status SUS</title>
+  <meta name="description" content="Status em tempo real do e-SUS, CADSUS, RNDS e Gov.br." />
+  <meta name="theme-color" content="#0b0c0f" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2316a34a'/%3E%3C/svg%3E" />
 
   <style>
-    * {
-      box-sizing: border-box;
-      scrollbar-width: thin;
-      scrollbar-color: #272f45 #090a0f;
+    /* ---------------------------------------------------------------------
+       Tokens de tema (claro por padrão, escuro via sistema ou alternância)
+       --------------------------------------------------------------------- */
+    :root {
+      --bg: #ffffff;
+      --bg-subtle: #f7f7f8;
+      --surface: #ffffff;
+      --border: #e7e7ea;
+      --border-strong: #d4d4d8;
+      --text: #18181b;
+      --text-muted: #6b6b76;
+      --text-faint: #75757f;
+      --ok: #16a34a;
+      --warn: #d97706;
+      --down: #dc2626;
+      --empty: #e4e4e7;
+      --accent: #18181b;
+      --accent-text: #ffffff;
+      --overlay: rgba(9, 9, 11, 0.35);
+      --shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.18);
+      --radius: 10px;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      color-scheme: light;
     }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0b0c0f;
+        --bg-subtle: #111216;
+        --surface: #111216;
+        --border: #1f2026;
+        --border-strong: #2c2d35;
+        --text: #ededef;
+        --text-muted: #8b8b96;
+        --text-faint: #80808a;
+        --ok: #22c55e;
+        --warn: #f59e0b;
+        --down: #ef4444;
+        --empty: #23242b;
+        --accent: #ededef;
+        --accent-text: #0b0c0f;
+        --overlay: rgba(0, 0, 0, 0.6);
+        --shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.7);
+        color-scheme: dark;
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --bg: #0b0c0f;
+      --bg-subtle: #111216;
+      --surface: #111216;
+      --border: #1f2026;
+      --border-strong: #2c2d35;
+      --text: #ededef;
+      --text-muted: #8b8b96;
+      --text-faint: #80808a;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --down: #ef4444;
+      --empty: #23242b;
+      --accent: #ededef;
+      --accent-text: #0b0c0f;
+      --overlay: rgba(0, 0, 0, 0.6);
+      --shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.7);
+      color-scheme: dark;
+    }
+
+    /* ---------------------------------------------------------------------
+       Base
+       --------------------------------------------------------------------- */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body { margin: 0; }
 
     body {
-      background-color: #090a0f;
-      color: #f1f5f9;
-      font-family: 'Inter', -apple-system, sans-serif;
-      background-image: 
-        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(14, 165, 233, 0.08), transparent),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-        linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
-      background-size: 100% 100%, 32px 32px, 32px 32px;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 var(--sans);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
-    .tabular-nums {
-      font-variant-numeric: tabular-nums;
+    a { color: inherit; }
+    button, input, select { font: inherit; color: inherit; }
+    code, kbd, pre, .mono { font-family: var(--mono); font-size: 12px; }
+    .num { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--text-muted); }
+    .faint { color: var(--text-faint); }
+    .hidden { display: none !important; }
+
+    .wrap {
+      width: 100%;
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 0 16px;
     }
 
-    /* Cards limpos com borda 1px sutil estilo Datadog / Better Stack */
-    .status-card {
-      background: #0f121a;
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      border-radius: 12px;
-      transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+    :focus-visible {
+      outline: 2px solid var(--text);
+      outline-offset: 2px;
+      border-radius: 4px;
     }
 
-    .status-card:hover {
-      border-color: rgba(14, 165, 233, 0.35);
-      transform: translateY(-2px);
-      box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.6);
+    /* ---------------------------------------------------------------------
+       Cabeçalho
+       --------------------------------------------------------------------- */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
     }
 
-    .sla-tick {
-      transition: transform 0.14s ease, filter 0.14s ease;
-    }
-    .sla-tick:hover {
-      transform: scaleY(1.35);
-      filter: brightness(1.25);
+    .bar {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
     }
 
-    /* Gaveta de Inspeção Lateral */
-    .drawer-backdrop {
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      text-decoration: none;
+    }
+
+    .actions { display: flex; align-items: center; gap: 6px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 32px;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s;
+    }
+    .btn { text-decoration: none; }
+    .btn:hover { color: var(--text); border-color: var(--border-strong); }
+    .btn:disabled { opacity: .6; cursor: default; }
+    .btn svg { width: 15px; height: 15px; }
+    .btn kbd {
+      padding: 0 4px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 10px;
+      color: var(--text-faint);
+    }
+    .btn-icon { width: 32px; padding: 0; }
+    .btn-primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+    .btn-primary:hover { color: var(--accent-text); opacity: .9; }
+
+    .spin { animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    nav.tabs {
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    nav.tabs::-webkit-scrollbar { display: none; }
+    nav.tabs button {
+      padding: 10px 0;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      background: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    nav.tabs button:hover { color: var(--text); }
+    nav.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); }
+
+    /* ---------------------------------------------------------------------
+       Indicadores de status
+       --------------------------------------------------------------------- */
+    .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-faint);
+      flex-shrink: 0;
+    }
+    .dot.operational, .dot.mtls { background: var(--ok); }
+    .dot.degraded { background: var(--warn); }
+    .dot.outage { background: var(--down); }
+    .dot.pulse { box-shadow: 0 0 0 0 currentColor; animation: pulse 2s infinite; }
+    .dot.operational.pulse, .dot.mtls.pulse { color: color-mix(in srgb, var(--ok) 45%, transparent); }
+    .dot.degraded.pulse { color: color-mix(in srgb, var(--warn) 45%, transparent); }
+    .dot.outage.pulse { color: color-mix(in srgb, var(--down) 45%, transparent); }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 currentColor; }
+      70% { box-shadow: 0 0 0 6px transparent; }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+
+    .t-operational, .t-mtls { color: var(--ok); }
+    .t-degraded { color: var(--warn); }
+    .t-outage { color: var(--down); }
+
+    /* ---------------------------------------------------------------------
+       Conteúdo
+       --------------------------------------------------------------------- */
+    main { flex: 1; padding: 40px 0 64px; }
+
+    .hero { margin-bottom: 32px; }
+    .hero h1 {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .hero h1 .dot { width: 10px; height: 10px; }
+    .hero p { margin: 8px 0 0; color: var(--text-muted); }
+
+    .diag { margin: 0 0 32px; padding: 0; list-style: none; display: grid; gap: 10px; }
+    .diag li { display: flex; gap: 12px; align-items: baseline; }
+    .diag li .dot { transform: translateY(-1px); }
+    .diag strong { font-weight: 500; }
+    .diag span.muted { display: block; font-size: 13px; }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .search {
+      position: relative;
+      flex: 1;
+      max-width: 280px;
+    }
+    .search svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      width: 14px;
+      height: 14px;
+      transform: translateY(-50%);
+      color: var(--text-faint);
+    }
+    .search input {
+      width: 100%;
+      height: 32px;
+      padding: 0 10px 0 30px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      outline: none;
+    }
+    .search input:focus { border-color: var(--border-strong); }
+    .search input::placeholder { color: var(--text-faint); }
+
+    .legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-muted); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+    .group { margin-top: 28px; }
+    .group-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .group-head h2 { margin: 0; font-size: 13px; font-weight: 500; color: var(--text-muted); }
+
+    .list {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px 16px;
+      align-items: center;
+      width: 100%;
+      padding: 14px 16px;
+      border: 0;
+      border-top: 1px solid var(--border);
+      background: none;
+      text-align: left;
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .row:first-child { border-top: 0; }
+    .row:hover { background: var(--bg-subtle); }
+
+    .row-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .row-name b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row-name .tag { font-family: var(--mono); font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+
+    .row-meta { display: flex; align-items: center; gap: 12px; font-size: 13px; white-space: nowrap; }
+    .row-meta .lat { min-width: 64px; text-align: right; }
+
+    .ticks {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 2px;
+      height: 20px;
+    }
+    .ticks i {
+      flex: 1;
+      border-radius: 2px;
+      background: var(--empty);
+    }
+    .ticks i.operational, .ticks i.mtls { background: var(--ok); opacity: .75; }
+    .ticks i.degraded { background: var(--warn); }
+    .ticks i.outage { background: var(--down); }
+    .ticks i:hover { opacity: 1; }
+
+    .ticks-legend {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-faint);
+      margin-top: -2px;
+    }
+
+    .empty {
+      padding: 40px 16px;
+      text-align: center;
+      color: var(--text-muted);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+    }
+
+    /* Tabela */
+    .table-wrap { border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px 14px; text-align: left; border-top: 1px solid var(--border); white-space: nowrap; }
+    thead th { border-top: 0; font-weight: 500; font-size: 12px; color: var(--text-muted); background: var(--bg-subtle); }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover { background: var(--bg-subtle); }
+    td.r, th.r { text-align: right; }
+    td .ell { display: block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Sobre */
+    .prose { max-width: 640px; }
+    .prose h2 { font-size: 16px; font-weight: 600; margin: 32px 0 8px; }
+    .prose h2:first-child { margin-top: 0; }
+    .prose p, .prose li { color: var(--text-muted); }
+    .prose ol { padding-left: 20px; }
+    .prose li { margin-bottom: 6px; }
+    .prose li b { color: var(--text); font-weight: 500; }
+    pre.code {
+      margin: 0;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-subtle);
+      overflow-x: auto;
+      line-height: 1.6;
+    }
+
+    footer { border-top: 1px solid var(--border); padding: 20px 0; font-size: 12px; color: var(--text-muted); }
+    footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+    footer a { text-decoration: none; }
+    footer a:hover { color: var(--text); }
+
+    /* ---------------------------------------------------------------------
+       Gaveta de detalhes
+       --------------------------------------------------------------------- */
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      background: var(--overlay);
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.22s ease;
+      transition: opacity .2s;
     }
-    .drawer-backdrop.open {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    .drawer-panel {
+    .backdrop.open { opacity: 1; pointer-events: auto; }
+
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 50;
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      border-left: 1px solid var(--border);
+      box-shadow: var(--shadow);
       transform: translateX(100%);
-      transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+      visibility: hidden;
+      transition: transform .25s cubic-bezier(.16, 1, .3, 1), visibility 0s linear .25s;
     }
-    .drawer-panel.open {
-      transform: translateX(0);
-    }
+    .drawer.open { transform: none; visibility: visible; transition: transform .25s cubic-bezier(.16, 1, .3, 1); }
 
-    /* Command Palette */
-    .cmdk-backdrop {
+    .drawer-head { padding: 20px; border-bottom: 1px solid var(--border); display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; }
+    .drawer-head h2 { margin: 6px 0 4px; font-size: 16px; font-weight: 600; }
+    .drawer-head a { font-size: 12px; color: var(--text-muted); word-break: break-all; }
+    .drawer-body { flex: 1; overflow-y: auto; padding: 20px; display: grid; gap: 24px; align-content: start; }
+    .drawer-body > * { min-width: 0; }
+    .drawer-foot { padding: 16px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+    .drawer-foot .btn { flex: 1; height: 36px; }
+
+    .status-line { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--border); border-radius: 8px; }
+    .metrics div { padding: 12px; }
+    .metrics div + div { border-left: 1px solid var(--border); }
+    .metrics small { display: block; font-size: 11px; color: var(--text-muted); }
+    .metrics strong { display: block; margin-top: 2px; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+    .field h3 { margin: 0 0 6px; font-size: 12px; font-weight: 500; color: var(--text-muted); }
+    .field p { margin: 0; }
+    .field-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .field-head h3 { margin: 0; }
+    .link-btn { border: 0; background: none; padding: 0; font-size: 12px; color: var(--text-muted); cursor: pointer; }
+    .link-btn:hover { color: var(--text); }
+
+    details summary { cursor: pointer; font-size: 12px; font-weight: 500; color: var(--text-muted); list-style: none; }
+    details summary::-webkit-details-marker { display: none; }
+    details summary::before { content: "+ "; font-family: var(--mono); }
+    details[open] summary::before { content: "− "; }
+    details pre.code { margin-top: 8px; max-height: 240px; }
+
+    /* ---------------------------------------------------------------------
+       Busca rápida (Ctrl+K)
+       --------------------------------------------------------------------- */
+    .palette {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 12vh 16px 0;
+      background: var(--overlay);
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.18s ease;
+      visibility: hidden;
+      transition: opacity .15s, visibility 0s linear .15s;
     }
-    .cmdk-backdrop.open {
-      opacity: 1;
-      pointer-events: auto;
+    .palette.open { opacity: 1; pointer-events: auto; visibility: visible; transition: opacity .15s; }
+    .palette-box {
+      width: 100%;
+      max-width: 520px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg);
+      box-shadow: var(--shadow);
+      overflow: hidden;
     }
-    .cmdk-box {
-      transform: scale(0.97) translateY(-6px);
-      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    .palette-box input {
+      width: 100%;
+      height: 48px;
+      padding: 0 16px;
+      border: 0;
+      border-bottom: 1px solid var(--border);
+      background: none;
+      outline: none;
+      font-size: 15px;
     }
-    .cmdk-backdrop.open .cmdk-box {
-      transform: scale(1) translateY(0);
+    .palette-results { max-height: 340px; overflow-y: auto; padding: 6px; }
+    .palette-results button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border: 0;
+      border-radius: 8px;
+      background: none;
+      text-align: left;
+      cursor: pointer;
+    }
+    .palette-results button:hover, .palette-results button.active { background: var(--bg-subtle); }
+    .palette-results .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      z-index: 70;
+      padding: 8px 14px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: var(--accent-text);
+      font-size: 13px;
+      transform: translate(-50%, 8px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s, transform .2s;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (max-width: 640px) {
+      main { padding-top: 28px; }
+      .hero h1 { font-size: 20px; }
+      .legend { display: none; }
+      .search { max-width: none; }
+      .row-name .tag, .hide-sm { display: none; }
+      .btn-label { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
     }
   </style>
 </head>
 
-<body class="min-h-screen flex flex-col selection:bg-sky-500/25 selection:text-sky-200">
+<body>
 
-  <!-- =========================================================================
-       HEADER PRINCIPAL SÓBRIO (Padrão Datadog / GitHub Status)
-       ========================================================================= -->
-  <header class="sticky top-0 z-40 border-b border-white/[0.08] bg-[#090a0f]/90 backdrop-blur-md">
-    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-
-      <!-- Logomarca & Status Geral -->
-      <div class="flex items-center gap-4">
-        <div class="flex items-center gap-3">
-          <div class="size-9 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400">
-            <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-            </svg>
-          </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="font-semibold text-sm sm:text-base tracking-tight text-white">Status SUS</span>
-              <span class="px-1.5 py-0.5 text-[10px] font-mono font-medium rounded bg-white/[0.08] text-slate-300 border border-white/10">MIT</span>
-            </div>
-            <p class="text-[11px] text-slate-400 hidden sm:block">
-              Disponibilidade e Telemetria de Barramentos (DATASUS / MS / Gov.br)
-            </p>
-          </div>
-        </div>
-
-        <div id="global-status-pill" class="hidden xl:flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-medium">
-          <span class="size-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span id="global-status-text">Verificando serviços...</span>
+  <header>
+    <div class="wrap">
+      <div class="bar">
+        <a class="brand" href="./">
+          <span id="brand-dot" class="dot"></span>
+          Status SUS
+        </a>
+        <div class="actions">
+          <button class="btn" onclick="openPalette()" aria-label="Buscar serviço">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <span class="btn-label">Buscar</span>
+            <kbd class="hide-sm">Ctrl K</kbd>
+          </button>
+          <button class="btn btn-icon" onclick="toggleTheme()" aria-label="Alternar tema" title="Alternar tema">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18Z" fill="currentColor"/></svg>
+          </button>
+          <button id="btn-refresh" class="btn btn-icon" onclick="refresh(true)" aria-label="Verificar agora" title="Verificar agora">
+            <svg id="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg>
+          </button>
         </div>
       </div>
-
-      <!-- Abas de Navegação -->
-      <nav aria-label="Navegação Principal" class="hidden md:flex items-center p-1 rounded-lg bg-[#141824] border border-white/[0.08]">
-        <button onclick="switchTab('overview')" id="tab-btn-overview" class="px-3.5 py-1.5 rounded-md text-xs font-medium transition-all bg-white/[0.09] text-white">
-          Visão Geral
-        </button>
-        <button onclick="switchTab('matrix')" id="tab-btn-matrix" class="px-3.5 py-1.5 rounded-md text-xs font-medium transition-all text-slate-400 hover:text-white">
-          Matriz de Telemetria
-        </button>
-        <button onclick="switchTab('flow')" id="tab-btn-flow" class="px-3.5 py-1.5 rounded-md text-xs font-medium transition-all text-slate-400 hover:text-white">
-          Fluxo de Integração
-        </button>
-        <button onclick="switchTab('about')" id="tab-btn-about" class="px-3.5 py-1.5 rounded-md text-xs font-medium transition-all text-slate-400 hover:text-white">
-          Sobre & Configuração
-        </button>
+      <nav class="tabs" role="tablist" aria-label="Seções">
+        <button role="tab" data-tab="services" aria-selected="true" onclick="switchTab('services')">Serviços</button>
+        <button role="tab" data-tab="table" aria-selected="false" onclick="switchTab('table')">Tabela</button>
+        <button role="tab" data-tab="about" aria-selected="false" onclick="switchTab('about')">Sobre</button>
       </nav>
-
-      <!-- Ações: Busca (Ctrl+K), Intervalo e Atualizar -->
-      <div class="flex items-center gap-2.5">
-        <button onclick="openCmdk()" class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-[#141824] hover:bg-[#1c2233] border border-white/[0.08] text-xs text-slate-300 transition-all">
-          <svg class="size-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <span class="hidden sm:inline text-slate-400">Buscar serviço...</span>
-          <kbd class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/[0.06] text-slate-400 border border-white/10">Ctrl K</kbd>
-        </button>
-
-        <div class="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#141824] border border-white/[0.08] text-xs">
-          <span class="text-slate-400 text-[11px]">Poll:</span>
-          <select id="poll-interval-select" onchange="updatePollInterval(this.value)" class="bg-transparent font-mono text-xs text-sky-400 focus:outline-none cursor-pointer">
-            <option value="15000" class="bg-[#141824]">15s</option>
-            <option value="30000" selected class="bg-[#141824]">30s</option>
-            <option value="60000" class="bg-[#141824]">60s</option>
-            <option value="0" class="bg-[#141824]">Manual</option>
-          </select>
-        </div>
-
-        <button id="btn-scan-now" onclick="triggerFullScan(true)" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs transition-all active:scale-95 shadow-sm">
-          <svg id="scan-spinner-icon" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
-          <span>Atualizar</span>
-        </button>
-      </div>
     </div>
   </header>
 
-  <!-- =========================================================================
-       CONTEÚDO PRINCIPAL
-       ========================================================================= -->
-  <main class="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+  <main>
+    <div class="wrap">
 
-    <!-- FAIXA DE INDICADORES (KPIs) -->
-    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-      
-      <!-- KPI 1: Centralizador Nacional Version -->
-      <div onclick="openInspectorById('esus-centralizador-nacional')" class="status-card p-4 cursor-pointer">
-        <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
-          <span class="font-medium">Centralizador Nacional e-SUS</span>
-          <span id="cent-server-badge" class="font-mono text-[11px] text-slate-400">JBoss-EAP/7</span>
-        </div>
-        <div class="flex items-baseline justify-between gap-2 mt-1">
-          <div class="text-xl font-bold text-white font-mono" id="cent-version-label">v5.7.36</div>
-          <div class="font-mono text-emerald-400 font-semibold text-sm tabular-nums" id="cent-latency-big">-- ms</div>
-        </div>
-        <p class="text-[11px] text-slate-400 mt-2 truncate">
-          Build MS: <span id="cent-build-label" class="font-mono text-slate-300">07/10/2026</span> • Pool <span id="cent-pool-label" class="font-mono text-sky-300">BIGipServeresus_prod</span>
-        </p>
-      </div>
-
-      <!-- KPI 2: Barramentos Online -->
-      <div class="status-card p-4">
-        <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
-          <span class="font-medium">Serviços Operacionais</span>
-          <span id="kpi-health-pct" class="font-mono text-xs text-emerald-400 font-semibold">--% SLA</span>
-        </div>
-        <div class="flex items-baseline justify-between gap-2 mt-1">
-          <div class="text-xl font-bold text-white font-mono tabular-nums" id="kpi-online-count">--/--</div>
-          <span class="text-xs text-slate-400">Tempo Real</span>
-        </div>
-        <p class="text-[11px] text-slate-400 mt-2">
-          Monitoramento em paralelo sem dependências externas.
-        </p>
-      </div>
-
-      <!-- KPI 3: Barramento SOA-CADSUS -->
-      <div onclick="openInspectorById('cadsus-soap-wsdl')" class="status-card p-4 cursor-pointer">
-        <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
-          <span class="font-medium">SOA-CADSUS (SOAP WSDL)</span>
-          <span class="px-1.5 py-0.2 rounded text-[10px] font-mono bg-sky-500/10 text-sky-300">v5r0</span>
-        </div>
-        <div class="flex items-baseline justify-between gap-2 mt-1">
-          <div class="text-xl font-bold text-emerald-400 font-mono" id="kpi-cadsus-status">WSDL ATIVO</div>
-          <div class="font-mono text-slate-300 text-sm tabular-nums" id="kpi-cadsus-ms">-- ms</div>
-        </div>
-        <p class="text-[11px] text-slate-400 mt-2">
-          Consulta de CPF/CNS em tempo de execução nos prontuários.
-        </p>
-      </div>
-
-      <!-- KPI 4: Latência e Varredura -->
-      <div class="status-card p-4">
-        <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
-          <span class="font-medium">Latência Média</span>
-          <span id="kpi-scan-duration" class="font-mono text-[11px] text-slate-400">scan --ms</span>
-        </div>
-        <div class="flex items-baseline justify-between gap-2 mt-1">
-          <div class="text-xl font-bold text-slate-100 font-mono tabular-nums" id="kpi-avg-latency">-- ms</div>
-          <span class="text-xs text-slate-400">Última checagem</span>
-        </div>
-        <p class="text-[11px] text-slate-400 mt-2">
-          Atualizado às <span id="kpi-updated-at" class="font-mono text-slate-300">--:--:--</span>
-        </p>
-      </div>
-
-    </section>
-
-    <!-- =======================================================================
-         ABA 1: VISÃO GERAL (Cards + Diagnóstico Inteligente)
-         ======================================================================= -->
-    <div id="view-overview" class="space-y-6">
-
-      <!-- MOTOR DE DIAGNÓSTICO DE CAUSA-RAIZ (Portais vs Barramentos M2M) -->
-      <section class="status-card p-5">
-        <div class="flex items-center justify-between pb-3 border-b border-white/[0.08]">
-          <div class="flex items-center gap-2">
-            <svg class="size-4 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <h2 class="text-sm font-semibold text-white">Diagnóstico Técnico Automático (M2M vs Interface Web)</h2>
-          </div>
-          <span class="text-[11px] text-slate-400 font-mono">Diferencia quedas de interface web de quedas em APIs dos prontuários</span>
-        </div>
-        <div id="diagnostics-list" class="mt-3.5 grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <!-- Preenchido via JS -->
-        </div>
+      <section class="hero" aria-live="polite">
+        <h1><span id="hero-dot" class="dot"></span><span id="hero-title">Verificando serviços…</span></h1>
+        <p id="hero-sub">Consultando os barramentos do DATASUS, Ministério da Saúde e Gov.br.</p>
       </section>
 
-      <!-- BARRA DE FILTROS POR CAMADA -->
-      <section class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-[#0f121a] border border-white/[0.08]">
-        <div class="flex flex-wrap items-center gap-1.5">
-          <button onclick="filterByLayer('all')" data-layer-btn="all" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-sky-500/20 text-sky-300 border border-sky-400/30">
-            Todos os Serviços (<span id="count-all">15</span>)
-          </button>
-          <button onclick="filterByLayer('aps_lotes')" data-layer-btn="aps_lotes" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] border border-transparent">
-            Atenção Primária & Centralizador
-          </button>
-          <button onclick="filterByLayer('cadsus_rnds')" data-layer-btn="cadsus_rnds" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] border border-transparent">
-            CADSUS SOAP & RNDS FHIR
-          </button>
-          <button onclick="filterByLayer('govbr_auth')" data-layer-btn="govbr_auth" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] border border-transparent">
-            Autenticação Gov.br
-          </button>
-          <button onclick="filterByLayer('gestao_federal')" data-layer-btn="gestao_federal" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] border border-transparent">
-            Gestão & Financiamento Federal
-          </button>
+      <!-- Serviços -->
+      <div id="view-services">
+        <ul id="diagnostics" class="diag"></ul>
+
+        <div class="toolbar">
+          <label class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="filter" type="search" placeholder="Filtrar serviços" oninput="setFilter(this.value)" aria-label="Filtrar serviços" />
+          </label>
+          <div class="legend">
+            <span><i class="dot operational"></i>Operacional</span>
+            <span><i class="dot degraded"></i>Lento</span>
+            <span><i class="dot outage"></i>Indisponível</span>
+          </div>
         </div>
 
-        <div class="relative ml-auto">
-          <input
-            id="inline-filter-input"
-            type="text"
-            oninput="handleInlineSearch(this.value)"
-            placeholder="Filtrar por nome, URL ou protocolo..."
-            class="w-56 sm:w-64 pl-8 pr-3 py-1.5 rounded-lg bg-[#090a0f] border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500/50"
-          />
-          <svg class="size-3.5 text-slate-500 absolute left-2.5 top-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        </div>
-      </section>
-
-      <!-- GRADE DE CARDS DOS SERVIÇOS -->
-      <div id="layers-container" class="space-y-6">
-        <!-- Preenchido dinamicamente via renderServiceGroups() -->
+        <div id="groups"></div>
       </div>
 
-    </div>
-
-    <!-- =======================================================================
-         ABA 2: MATRIZ DE TELEMETRIA EM ALTA DENSIDADE
-         ======================================================================= -->
-    <div id="view-matrix" class="hidden space-y-4">
-      <div class="status-card overflow-hidden">
-        <div class="p-4 border-b border-white/[0.08] flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 class="font-semibold text-sm text-white">Matriz de Telemetria de Barramentos</h2>
-            <p class="text-xs text-slate-400">Tabela de comparação direta de protocolo, código de resposta HTTP e latência real.</p>
-          </div>
-          <button onclick="exportTelemetryJson()" class="px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-mono text-sky-300 transition-all">
-            Exportar JSON
-          </button>
+      <!-- Tabela -->
+      <div id="view-table" class="hidden">
+        <div class="toolbar">
+          <span class="muted">Protocolo, código HTTP e latência de cada endpoint.</span>
+          <button class="btn" onclick="exportJson()">Exportar JSON</button>
         </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse text-xs">
+        <div class="table-wrap">
+          <table>
             <thead>
-              <tr class="border-b border-white/[0.08] bg-[#090a0f]/80 text-[11px] font-mono uppercase text-slate-400">
-                <th class="py-3 px-4">Status</th>
-                <th class="py-3 px-4">Serviço / Barramento</th>
-                <th class="py-3 px-4">Tipo</th>
-                <th class="py-3 px-4">Protocolo</th>
-                <th class="py-3 px-4">Endpoint Oficial</th>
-                <th class="py-3 px-4 text-right">HTTP</th>
-                <th class="py-3 px-4 text-right">Latência</th>
-                <th class="py-3 px-4 text-center">Ações</th>
+              <tr>
+                <th>Serviço</th>
+                <th>Protocolo</th>
+                <th>Endpoint</th>
+                <th class="r">HTTP</th>
+                <th class="r">Latência</th>
               </tr>
             </thead>
-            <tbody id="high-density-tbody" class="divide-y divide-white/[0.06]">
-              <!-- Preenchido via JS -->
-            </tbody>
+            <tbody id="table-body"></tbody>
           </table>
         </div>
       </div>
-    </div>
 
-    <!-- =======================================================================
-         ABA 3: FLUXO DE INTEGRAÇÃO (DIAGRAMA ARQUITETURAL LIMPO)
-         ======================================================================= -->
-    <div id="view-flow" class="hidden space-y-6">
-      <div class="status-card p-6 space-y-6">
-        <div>
-          <h2 class="text-base font-semibold text-white">Arquitetura de Transmissão e Interoperabilidade SUS</h2>
-          <p class="text-xs text-slate-400 mt-1">
-            Como os dados trafegam desde o atendimento clínico na UBS até a consolidação federal no SISAB e RNDS.
-          </p>
-        </div>
+      <!-- Sobre -->
+      <div id="view-about" class="hidden prose">
+        <h2>O que é</h2>
+        <p>Painel independente e de código aberto que verifica a disponibilidade dos sistemas nacionais de saúde pública: e-SUS APS, CADSUS, RNDS, Gov.br e portais de gestão federal. Não tem vínculo com o Ministério da Saúde nem com o DATASUS.</p>
 
-        <!-- Diagrama SVG / CSS de Blocos com Linhas de Conexão -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 relative">
-          
-          <!-- Bloco 1: Atendimento Clínico -->
-          <div class="p-4 rounded-xl bg-[#141824] border border-white/10 space-y-2">
-            <div class="text-[10px] font-mono text-sky-400 uppercase font-semibold">1. Unidade de Saúde (UBS)</div>
-            <h3 class="font-semibold text-sm text-white">Atendimento ao Cidadão</h3>
-            <p class="text-xs text-slate-300 leading-relaxed">
-              Médicos, enfermeiros, dentistas e agentes de saúde registram consultas, visitas domiciliares, procedimentos e vacinas.
-            </p>
-            <div class="pt-2 text-[11px] font-mono text-slate-400 border-t border-white/10">
-              Coleta: e-SUS PEC ou ERP Próprio
-            </div>
-          </div>
+        <h2>Como os dados trafegam</h2>
+        <ol>
+          <li><b>Unidade de Saúde.</b> O atendimento é registrado no e-SUS PEC ou em um prontuário próprio.</li>
+          <li><b>Barramentos em tempo real.</b> O prontuário consulta pacientes no SOA-CADSUS (SOAP) e envia vacinas à RNDS (HL7 FHIR).</li>
+          <li><b>Centralizador Nacional.</b> Os lotes de produção são transmitidos para <code>esusab.saude.gov.br</code><span id="about-version"></span>.</li>
+          <li><b>Base federal.</b> O SISAB e o e-Gestor APS validam as fichas e calculam os indicadores de cofinanciamento.</li>
+        </ol>
 
-          <!-- Bloco 2: Barramentos M2M em Tempo Real -->
-          <div class="p-4 rounded-xl bg-[#141824] border border-sky-400/30 space-y-2">
-            <div class="text-[10px] font-mono text-emerald-400 uppercase font-semibold">2. Barramentos em Tempo de Execução</div>
-            <h3 class="font-semibold text-sm text-white">Consulta CADSUS & RNDS</h3>
-            <p class="text-xs text-slate-300 leading-relaxed">
-              A recepção busca o paciente no <strong>SOA-CADSUS WSDL</strong>. Vacinas aplicadas geram pacotes HL7 FHIR para a <strong>RNDS</strong>.
-            </p>
-            <div class="pt-2 text-[11px] font-mono text-emerald-400 border-t border-white/10">
-              Protocolos: SOAP / XML & FHIR R4
-            </div>
-          </div>
+        <h2>Por que separar API e portal</h2>
+        <p>O portal web do CADSUS (<code>cadastro.saude.gov.br/novocartao/</code>) pode estar fora do ar enquanto o WebService usado pelos prontuários (<code>servicos.saude.gov.br/cadsus/…?wsdl</code>) continua respondendo. Monitorar os dois mostra se a falha é só na tela do navegador ou se de fato impede o atendimento.</p>
 
-          <!-- Bloco 3: Recepção de Lotes LEDI -->
-          <div class="p-4 rounded-xl bg-[#141824] border border-white/10 space-y-2">
-            <div class="text-[10px] font-mono text-amber-400 uppercase font-semibold">3. Centralizador Nacional</div>
-            <h3 class="font-semibold text-sm text-white">esusab.saude.gov.br</h3>
-            <p class="text-xs text-slate-300 leading-relaxed">
-              O PEC municipal gera arquivos binários Thrift (.esus/.zip) e envia periodicamente para o pool F5 / JBoss nacional.
-            </p>
-            <div class="pt-2 text-[11px] font-mono text-amber-400 border-t border-white/10">
-              Versão Atual: v5.7.36 (Porta 443)
-            </div>
-          </div>
-
-          <!-- Bloco 4: Consolidação Federal & Indicadores -->
-          <div class="p-4 rounded-xl bg-[#141824] border border-white/10 space-y-2">
-            <div class="text-[10px] font-mono text-purple-400 uppercase font-semibold">4. Base Federal</div>
-            <h3 class="font-semibold text-sm text-white">SISAB & e-Gestor APS</h3>
-            <p class="text-xs text-slate-300 leading-relaxed">
-              Validação das fichas, apuração dos indicadores do cofinanciamento da APS (Portaria 3.493/2024) e cálculo de repasses.
-            </p>
-            <div class="pt-2 text-[11px] font-mono text-slate-400 border-t border-white/10">
-              Consolidação Quadrimestral
-            </div>
-          </div>
-
-        </div>
-
-        <!-- Explicação do Diagnóstico M2M vs Web -->
-        <div class="p-4 rounded-xl bg-[#090a0f] border border-white/[0.08] text-xs space-y-2">
-          <span class="font-mono text-sky-400 uppercase font-semibold text-[11px]">Por que monitorar a API separadamente da Interface Web?</span>
-          <p class="text-slate-300 leading-relaxed">
-            Muitos serviços governamentais possuem arquiteturas desacopladas. O portal de operadores (como o <code>cadastro.saude.gov.br/novocartao/</code>) pode ficar sobrecarregado ou apresentar falhas no servidor de apresentação web enquanto o barramento de integração máquina-a-máquina (<code>servicos.saude.gov.br/cadsus/.../v5r0?wsdl</code>) continua respondendo normalmente.
-          </p>
-          <p class="text-slate-400 leading-relaxed">
-            Com este painel, os gestores e a equipe de TI da saúde identificam se um erro é apenas cosmético no navegador ou se de fato impede o atendimento e a transmissão de lotes.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- =======================================================================
-         ABA 4: SOBRE & CONFIGURAÇÃO (PROJETO OPEN-SOURCE MIT)
-         ======================================================================= -->
-    <div id="about-tab-content" class="hidden space-y-6">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        
-        <!-- Documentação & Como Rodar -->
-        <div class="status-card p-6 space-y-4">
-          <div class="flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-sky-500/10 text-sky-300 border border-sky-500/20">OPEN SOURCE</span>
-            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">LICENÇA MIT</span>
-          </div>
-          <h2 class="text-lg font-bold text-white">Status SUS — Observabilidade Independente</h2>
-          <p class="text-xs text-slate-300 leading-relaxed">
-            Painel leve e autocontido para monitoramento de disponibilidade e tempo de resposta da infraestrutura digital de saúde pública brasileira (DATASUS, Ministério da Saúde e Gov.br).
-          </p>
-
-          <div class="space-y-3 pt-2 text-xs">
-            <h3 class="font-semibold text-white">Características Principais:</h3>
-            <ul class="space-y-2 list-disc list-inside text-slate-300">
-              <li><strong>Zero dependências pesadas:</strong> Backend em Python nativo com biblioteca padrão (<code>http.server</code>, <code>urllib</code>, <code>ssl</code>, <code>socket</code>, <code>concurrent.futures</code>).</li>
-              <li><strong>Varredura Concorrente:</strong> Sonda todos os endpoints em paralelo em menos de 2 segundos.</li>
-              <li><strong>Inspeção Heurística:</strong> Extrai a versão e data de build do Centralizador Nacional e-SUS e valida o contrato XML WSDL do CADSUS.</li>
-              <li><strong>Totalmente Customizável:</strong> Suporte a arquivo <code>config.json</code> para inclusão opcional de servidores locais (instâncias próprias do e-SUS PEC, bancos de dados municipais ou portais estaduais).</li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Como Configurar Endpoints Próprios (config.json) -->
-        <div class="status-card p-6 space-y-4">
-          <h3 class="font-semibold text-sm text-white">Como Adicionar Endpoints Municipais / Estaduais</h3>
-          <p class="text-xs text-slate-300 leading-relaxed">
-            Para monitorar a instância local do e-SUS PEC ou o sistema da sua Secretaria de Saúde, basta editar o arquivo <code>config.json</code> na raiz do projeto:
-          </p>
-
-          <pre class="p-3.5 rounded-xl bg-[#090a0f] border border-white/10 font-mono text-[11px] text-slate-300 overflow-x-auto leading-relaxed">{
-  "server": {
-    "port": 8765,
-    "host": "0.0.0.0"
-  },
+        <h2>Monitorar serviços locais</h2>
+        <p>Inclua a instância do e-SUS PEC do município, bancos de dados ou portais estaduais no <code>config.json</code>. As alterações valem no próximo reinício do servidor.</p>
+        <pre class="code">{
   "customEndpoints": [
     {
       "id": "pec-local",
@@ -492,649 +658,534 @@
     }
   ]
 }</pre>
-          <div class="text-[11px] text-slate-400">
-            Qualquer alteração no <code>config.json</code> é carregada no próximo reinício do servidor.
-          </div>
-        </div>
 
+        <h2>API</h2>
+        <p><code>GET /api/status</code> devolve o último snapshot. <code>GET /api/probe/&lt;id&gt;</code> verifica um serviço sob demanda.</p>
       </div>
-    </div>
 
+    </div>
   </main>
 
-  <!-- =========================================================================
-       RODAPÉ SÓBRIO
-       ========================================================================= -->
-  <footer class="mt-auto border-t border-white/[0.08] bg-[#090a0f] py-4">
-    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
-      <div class="flex items-center gap-2">
-        <span>Status SUS • Código sob Licença MIT</span>
-        <span>•</span>
-        <span>Monitoramento não oficial para apoio à gestão em saúde pública</span>
-      </div>
-      <div class="flex items-center gap-3">
-        <button onclick="switchTab('about')" class="hover:text-slate-200 transition-colors">Documentação</button>
-        <button onclick="triggerFullScan(true)" class="hover:text-slate-200 transition-colors">Varredura Manual</button>
-      </div>
+  <footer>
+    <div class="wrap">
+      <span>Status SUS · monitoramento não oficial · MIT</span>
+      <a href="https://github.com/weesrnp/status-sus" target="_blank" rel="noopener">GitHub ↗</a>
     </div>
   </footer>
 
-  <!-- =========================================================================
-       GAVETA LATERAL DE INSPEÇÃO TÉCNICA (SLIDE-OVER SHEET)
-       ========================================================================= -->
-  <div id="inspector-backdrop" onclick="closeInspector()" class="drawer-backdrop fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"></div>
-  <aside id="inspector-drawer" aria-label="Inspetor Técnico" class="drawer-panel fixed top-0 right-0 bottom-0 z-50 w-full max-w-xl bg-[#0f121a] border-l border-white/10 shadow-2xl flex flex-col">
-    <!-- Cabeçalho da Gaveta -->
-    <div class="p-5 border-b border-white/[0.08] flex items-start justify-between gap-4">
-      <div>
-        <div class="flex items-center gap-2">
-          <span id="insp-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-semibold uppercase border">OPERACIONAL</span>
-          <span id="insp-protocol" class="text-xs font-mono text-slate-400">HTTPS</span>
-        </div>
-        <h2 id="insp-title" class="mt-1.5 font-semibold text-base text-white">Nome do Serviço</h2>
-        <a id="insp-url" href="#" target="_blank" rel="noopener" class="font-mono text-xs text-slate-400 hover:text-sky-400 break-all underline underline-offset-4">https://...</a>
+  <!-- Gaveta de detalhes -->
+  <div id="backdrop" class="backdrop" onclick="closeDrawer()"></div>
+  <aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title" aria-hidden="true">
+    <div class="drawer-head">
+      <div style="min-width:0">
+        <div id="d-status" class="status-line"></div>
+        <h2 id="d-title"></h2>
+        <a id="d-url" href="#" target="_blank" rel="noopener" class="mono"></a>
       </div>
-      <button onclick="closeInspector()" class="p-2 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-white transition-all">
-        ✕
+      <button id="d-close" class="btn btn-icon" onclick="closeDrawer()" aria-label="Fechar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
 
-    <!-- Corpo da Gaveta -->
-    <div class="p-5 overflow-y-auto flex-1 space-y-4">
-      <!-- Grade de Métricas -->
-      <div class="grid grid-cols-3 gap-3">
-        <div class="p-3 rounded-lg bg-[#090a0f] border border-white/[0.07]">
-          <div class="text-[11px] text-slate-400">Código HTTP</div>
-          <div id="insp-http-code" class="mt-0.5 font-mono text-lg font-bold text-white tabular-nums">200</div>
-        </div>
-        <div class="p-3 rounded-lg bg-[#090a0f] border border-white/[0.07]">
-          <div class="text-[11px] text-slate-400">Latência Real</div>
-          <div id="insp-latency" class="mt-0.5 font-mono text-lg font-bold text-emerald-400 tabular-nums">-- ms</div>
-        </div>
-        <div class="p-3 rounded-lg bg-[#090a0f] border border-white/[0.07]">
-          <div class="text-[11px] text-slate-400">Disponibilidade</div>
-          <div id="insp-uptime" class="mt-0.5 font-mono text-lg font-bold text-sky-400 tabular-nums">100%</div>
-        </div>
+    <div class="drawer-body">
+      <div class="metrics">
+        <div><small>HTTP</small><strong id="d-http"></strong></div>
+        <div><small>Latência</small><strong id="d-latency"></strong></div>
+        <div><small>Disponibilidade</small><strong id="d-uptime"></strong></div>
       </div>
 
-      <!-- Impacto Clínico e Operacional -->
-      <div class="p-4 rounded-xl bg-sky-500/[0.05] border border-sky-500/20 space-y-2">
-        <div class="text-[11px] font-mono font-semibold uppercase tracking-wider text-sky-300">Impacto Clínico & Operacional</div>
-        <p id="insp-clinical" class="text-xs text-slate-200 leading-relaxed"></p>
-        <div class="pt-2 border-t border-white/10 text-xs text-slate-300">
-          <strong class="text-emerald-400">Orientação Técnica:</strong> <span id="insp-recovery"></span>
+      <div class="field">
+        <h3>Impacto</h3>
+        <p id="d-impact"></p>
+      </div>
+
+      <div class="field">
+        <h3>Orientação</h3>
+        <p id="d-hint" class="muted"></p>
+      </div>
+
+      <div class="field">
+        <div class="field-head">
+          <h3>Testar pelo terminal</h3>
+          <button class="link-btn" onclick="copyCommand()">Copiar</button>
         </div>
+        <pre id="d-cmd" class="code"></pre>
       </div>
 
-      <!-- Metadados Especiais (Versão Centralizador ou WSDL) -->
-      <div id="insp-extra-box" class="hidden p-4 rounded-xl bg-[#090a0f] border border-white/10 space-y-1.5">
-        <div class="text-[11px] font-mono font-semibold uppercase tracking-wider text-emerald-400">Metadados Técnicos Extraídos</div>
-        <pre id="insp-extra-pre" class="font-mono text-xs text-slate-200 whitespace-pre-wrap"></pre>
-      </div>
+      <details id="d-extra-wrap">
+        <summary>Metadados extraídos</summary>
+        <pre id="d-extra" class="code"></pre>
+      </details>
 
-      <!-- Diagnóstico via Terminal (cURL / PowerShell) -->
-      <div class="space-y-1.5">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-mono font-semibold text-slate-300">Diagnóstico via Terminal</span>
-          <button onclick="copyInspectorCommand()" class="px-2 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.12] text-[11px] font-mono text-sky-300 transition-all">
-            Copiar Comando
-          </button>
-        </div>
-        <pre id="insp-curl-cmd" class="p-3 rounded-lg bg-[#090a0f] border border-white/10 font-mono text-[11px] text-emerald-400 overflow-x-auto"></pre>
-      </div>
-
-      <!-- Cabeçalhos HTTP Brutos -->
-      <div class="space-y-1.5">
-        <span class="text-xs font-mono font-semibold text-slate-300">Cabeçalhos HTTP Retornados pelo Servidor</span>
-        <pre id="insp-headers-pre" class="p-3 rounded-lg bg-[#090a0f] border border-white/10 font-mono text-[11px] text-slate-300 overflow-x-auto max-h-52 leading-relaxed"></pre>
-      </div>
+      <details>
+        <summary>Cabeçalhos HTTP</summary>
+        <pre id="d-headers" class="code"></pre>
+      </details>
     </div>
 
-    <!-- Rodapé da Gaveta -->
-    <div class="p-4 border-t border-white/[0.08] bg-[#090a0f] flex items-center justify-between gap-3">
-      <button id="insp-btn-reprobe" onclick="probeSingleFromInspector()" class="flex-1 py-2 px-4 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs transition-all active:scale-95">
-        Sondar Este Endpoint Agora
-      </button>
-      <a id="insp-btn-open-url" href="#" target="_blank" rel="noopener" class="py-2 px-4 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-white text-xs font-medium transition-all">
-        Abrir URL ↗
-      </a>
+    <div class="drawer-foot">
+      <button id="d-probe" class="btn btn-primary" onclick="probeInspected()">Verificar agora</button>
+      <a id="d-open" class="btn" href="#" target="_blank" rel="noopener">Abrir ↗</a>
     </div>
   </aside>
 
-  <!-- =========================================================================
-       MODAL COMMAND PALETTE (Ctrl+K / ⌘K)
-       ========================================================================= -->
-  <div id="cmdk-backdrop" onclick="closeCmdk(event)" class="cmdk-backdrop fixed inset-0 z-50 bg-black/65 backdrop-blur-sm grid place-items-start justify-center pt-20 px-4">
-    <div class="cmdk-box w-full max-w-xl rounded-xl bg-[#0f121a] border border-white/15 shadow-2xl overflow-hidden" onclick="event.stopPropagation()">
-      <div class="p-3 border-b border-white/10 flex items-center gap-3">
-        <svg class="size-4 text-sky-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <input
-          id="cmdk-input"
-          type="text"
-          oninput="renderCmdkResults(this.value)"
-          placeholder="Digite para filtrar (ex: CADSUS, Centralizador, SISAB, RNDS, Gov.br)..."
-          class="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
-        />
-        <kbd onclick="closeCmdk()" class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/10 text-slate-300 cursor-pointer">ESC</kbd>
-      </div>
-      <div id="cmdk-results" class="max-h-80 overflow-y-auto p-2 divide-y divide-white/[0.05]">
-        <!-- Preenchido via JS -->
-      </div>
+  <!-- Busca rápida -->
+  <div id="palette" class="palette" onclick="closePalette()">
+    <div class="palette-box" role="dialog" aria-modal="true" aria-label="Buscar serviço" onclick="event.stopPropagation()">
+      <input id="palette-input" type="text" placeholder="Buscar serviço…" oninput="renderPalette(this.value)" onkeydown="paletteKey(event)" aria-label="Buscar serviço" />
+      <div id="palette-results" class="palette-results"></div>
     </div>
   </div>
 
-  <!-- Toast Notification -->
-  <div id="toast-box" class="fixed bottom-5 right-5 z-50 pointer-events-none transition-all duration-200 opacity-0 translate-y-2">
-    <div class="px-3.5 py-2 rounded-lg bg-[#141824] border border-sky-400/40 text-xs font-mono text-sky-200 shadow-xl flex items-center gap-2">
-      <span class="text-emerald-400">✓</span>
-      <span id="toast-msg">Mensagem</span>
-    </div>
-  </div>
+  <div id="toast" class="toast" role="status"></div>
 
-  <!-- =========================================================================
-       CONTROLADOR DA APLICAÇÃO (JAVASCRIPT NATIVO)
-       ========================================================================= -->
   <script>
-    let SNAPSHOT = null;
-    let ACTIVE_LAYER = 'all';
-    let SEARCH_QUERY = '';
-    let INSPECTED_ID = null;
-    let POLL_TIMER = null;
-
-    const STATUS_THEME = {
-      operational: {
-        dot: 'bg-emerald-400 text-emerald-400',
-        badge: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25',
-        bar: 'bg-emerald-400',
-        text: 'text-emerald-400'
-      },
-      mtls: {
-        dot: 'bg-sky-400 text-sky-400',
-        badge: 'bg-sky-500/10 text-sky-300 border-sky-500/25',
-        bar: 'bg-sky-400',
-        text: 'text-sky-400'
-      },
-      degraded: {
-        dot: 'bg-amber-400 text-amber-400',
-        badge: 'bg-amber-500/10 text-amber-300 border-amber-500/25',
-        bar: 'bg-amber-400',
-        text: 'text-amber-400'
-      },
-      outage: {
-        dot: 'bg-rose-500 text-rose-500',
-        badge: 'bg-rose-500/10 text-rose-300 border-rose-500/25',
-        bar: 'bg-rose-500',
-        text: 'text-rose-400'
-      }
+    const POLL_MS = 30000;
+    const STATUS_TEXT = {
+      operational: 'Operacional',
+      mtls: 'Operacional (mTLS)',
+      degraded: 'Lento',
+      outage: 'Indisponível'
     };
 
+    let SNAPSHOT = null;
+    let FILTER = '';
+    let INSPECTED_ID = null;
+    let PALETTE_INDEX = 0;
+    let NEXT_POLL_AT = 0;
+
+    const $ = id => document.getElementById(id);
+
+    function esc(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[ch]);
+    }
+
+    function fmtMs(ms) {
+      return ms ? `${ms} ms` : '—';
+    }
+
+    function fmtUptime(pct) {
+      return pct === null || pct === undefined ? '—' : `${pct}%`;
+    }
+
+    function isUp(status) {
+      return status === 'operational' || status === 'mtls' || status === 'degraded';
+    }
+
     function showToast(msg) {
-      const box = document.getElementById('toast-box');
-      document.getElementById('toast-msg').textContent = msg;
-      box.classList.remove('opacity-0', 'translate-y-2');
-      setTimeout(() => box.classList.add('opacity-0', 'translate-y-2'), 2400);
+      const el = $('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => el.classList.remove('show'), 2400);
     }
 
-    async function triggerFullScan(force = false) {
-      const btn = document.getElementById('btn-scan-now');
-      const icon = document.getElementById('scan-spinner-icon');
-      icon.classList.add('animate-spin');
+    /* -------------------------------------------------------------------
+       Dados
+       ------------------------------------------------------------------- */
+    async function refresh(force = false) {
+      const btn = $('btn-refresh');
       btn.disabled = true;
-
+      $('refresh-icon').classList.add('spin');
+      let nextPoll = POLL_MS;
       try {
-        const res = await fetch(`/api/status${force ? '?force=1' : ''}`);
-        SNAPSHOT = await res.json();
-        renderDashboard(SNAPSHOT);
-        if (force) showToast(`Varredura concluída em ${SNAPSHOT.scanDurationMs}ms`);
+        const res = await fetch(`/api/status${force ? '?force=1' : ''}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.updatedAt) {
+          // Servidor recém-iniciado: a primeira varredura ainda está em andamento.
+          $('hero-sub').textContent = 'Primeira verificação em andamento…';
+          nextPoll = 2000;
+          return;
+        }
+        SNAPSHOT = data;
+        if (data.ttlSeconds) nextPoll = data.ttlSeconds * 1000;
+        render();
+        if (force) showToast(data.forceThrottled ? 'Verificação recente; exibindo o último resultado' : 'Verificação concluída');
       } catch (err) {
-        console.error('Falha na comunicação:', err);
+        console.error('Falha ao consultar /api/status:', err);
+        $('hero-sub').textContent = 'Não foi possível consultar o servidor do painel. Nova tentativa em instantes.';
+        nextPoll = 10000;
       } finally {
-        icon.classList.remove('animate-spin');
         btn.disabled = false;
+        $('refresh-icon').classList.remove('spin');
+        NEXT_POLL_AT = Date.now() + nextPoll;
       }
     }
 
-    function renderDashboard(data) {
-      if (!data || !data.summary) return;
-      const sum = data.summary;
-      const cmeta = data.centralizadorMeta || {};
-
-      const pill = document.getElementById('global-status-pill');
-      const gtext = document.getElementById('global-status-text');
-      if (sum.outage === 0) {
-        gtext.textContent = `Todos os serviços principais operacionais (${sum.operational + sum.degraded}/${sum.total})`;
-        pill.className = 'hidden xl:flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-medium';
-      } else {
-        gtext.textContent = `${sum.operational}/${sum.total} Online • ${sum.outage} com alerta`;
-        pill.className = 'hidden xl:flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-300 text-xs font-medium';
+    async function probe(id) {
+      try {
+        const res = await fetch(`/api/probe/${encodeURIComponent(id)}`, { cache: 'no-store' });
+        const updated = await res.json();
+        if (!res.ok) throw new Error(updated.error || `HTTP ${res.status}`);
+        const idx = SNAPSHOT.services.findIndex(s => s.id === id);
+        if (idx !== -1) SNAPSHOT.services[idx] = updated;
+        render();
+        showToast(`${updated.shortName}: ${STATUS_TEXT[updated.status] || updated.statusLabel} · ${fmtMs(updated.latencyMs)}`);
+      } catch (err) {
+        showToast('Não foi possível verificar o serviço');
       }
+    }
 
-      document.getElementById('cent-version-label').textContent = `v${cmeta.version || '5.7.36'}`;
-      document.getElementById('cent-build-label').textContent = (cmeta.buildDateFormatted || '07/10/2026').split(' ')[0];
-      document.getElementById('cent-server-badge').textContent = cmeta.serverHeader || 'JBoss-EAP/7';
-      document.getElementById('cent-pool-label').textContent = cmeta.f5BigIpPool || 'BIGipServeresus_prod';
-
-      const centSvc = data.services.find(s => s.id === 'esus-centralizador-nacional');
-      if (centSvc) {
-        document.getElementById('cent-latency-big').textContent = `${centSvc.latencyMs} ms`;
-      }
-
-      const cadsusSoap = data.services.find(s => s.id === 'cadsus-soap-wsdl');
-      if (cadsusSoap) {
-        document.getElementById('kpi-cadsus-status').textContent = cadsusSoap.statusLabel;
-        document.getElementById('kpi-cadsus-ms').textContent = `${cadsusSoap.latencyMs} ms`;
-      }
-
-      document.getElementById('kpi-online-count').textContent = `${sum.operational + sum.degraded}/${sum.total}`;
-      document.getElementById('kpi-health-pct').textContent = `${sum.healthScorePct}% SLA`;
-      document.getElementById('kpi-avg-latency').textContent = `${sum.avgLatencyMs} ms`;
-      document.getElementById('kpi-scan-duration').textContent = `scan ${data.scanDurationMs}ms`;
-      document.getElementById('kpi-updated-at').textContent = (data.updatedAt || '').split(' ')[1] || data.updatedAt;
-      document.getElementById('count-all').textContent = sum.total;
-
-      renderDiagnostics(data.diagnostics || []);
-      renderServiceGroups(data.services || []);
-      renderHighDensityTable(data.services || []);
-
+    /* -------------------------------------------------------------------
+       Renderização
+       ------------------------------------------------------------------- */
+    function render() {
+      if (!SNAPSHOT || !SNAPSHOT.services) return;
+      renderHero();
+      renderDiagnostics();
+      renderGroups();
+      renderTable();
+      renderAboutVersion();
       if (INSPECTED_ID) {
-        const updatedInsp = data.services.find(s => s.id === INSPECTED_ID);
-        if (updatedInsp) populateInspector(updatedInsp);
+        const svc = SNAPSHOT.services.find(s => s.id === INSPECTED_ID);
+        if (svc) fillDrawer(svc);
       }
     }
 
-    function renderDiagnostics(diags) {
-      const box = document.getElementById('diagnostics-list');
-      box.innerHTML = diags.map(d => {
-        const theme = STATUS_THEME[d.severity] || STATUS_THEME.operational;
-        return `
-          <div class="p-3 rounded-lg bg-[#090a0f] border border-white/[0.07] space-y-1">
-            <div class="flex items-center justify-between gap-2">
-              <div class="flex items-center gap-1.5 min-w-0">
-                <span class="size-2 rounded-full shrink-0 ${theme.dot}"></span>
-                <span class="text-xs font-semibold text-white truncate">${d.title}</span>
-              </div>
-              <span class="px-1.5 py-0.2 rounded text-[10px] font-mono border shrink-0 ${theme.badge}">${d.badge}</span>
-            </div>
-            <p class="text-[11px] text-slate-300 leading-relaxed">${d.summary}</p>
-          </div>
-        `;
-      }).join('');
+    function overallStatus() {
+      const sum = SNAPSHOT.summary || {};
+      if (sum.outage > 0) return 'outage';
+      if (sum.degraded > 0) return 'degraded';
+      return 'operational';
     }
 
-    function buildSparklineSvg(history, status) {
-      if (!history || history.length < 2) return '';
-      const pts = history.slice(-16).map(h => h.latencyMs || 50);
-      const max = Math.max(...pts, 300);
-      const min = Math.min(...pts, 0);
-      const range = Math.max(max - min, 50);
-      const w = 110;
-      const h = 24;
-      const coords = pts.map((val, idx) => {
-        const x = (idx / (pts.length - 1)) * w;
-        const y = h - ((val - min) / range) * (h - 6) - 3;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      }).join(' ');
-      const stroke = status === 'outage' ? '#EF4444' : (status === 'degraded' ? '#F59E0B' : (status === 'mtls' ? '#38BDF8' : '#10B981'));
-      return `
-        <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" class="overflow-visible">
-          <polyline fill="none" stroke="${stroke}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" points="${coords}" />
-        </svg>
-      `;
+    function renderHero() {
+      const sum = SNAPSHOT.summary || {};
+      const status = overallStatus();
+      let title = 'Todos os sistemas operacionais';
+      if (status === 'outage') {
+        title = sum.outage === 1 ? '1 serviço indisponível' : `${sum.outage} serviços indisponíveis`;
+      } else if (status === 'degraded') {
+        title = sum.degraded === 1 ? '1 serviço lento' : `${sum.degraded} serviços lentos`;
+      }
+
+      $('hero-title').textContent = title;
+      $('hero-dot').className = `dot pulse ${status}`;
+      $('brand-dot').className = `dot ${status}`;
+      document.title = status === 'operational' ? 'Status SUS' : `(${sum.outage + sum.degraded}) Status SUS`;
+      updateHeroSub();
     }
 
-    function renderServiceGroups(services) {
-      const container = document.getElementById('layers-container');
-      const filtered = services.filter(s => {
-        const matchLayer = (ACTIVE_LAYER === 'all') || (s.layer === ACTIVE_LAYER);
-        const q = SEARCH_QUERY.trim().toLowerCase();
-        const matchQuery = !q ||
-          s.name.toLowerCase().includes(q) ||
-          s.shortName.toLowerCase().includes(q) ||
-          s.url.toLowerCase().includes(q) ||
-          s.protocol.toLowerCase().includes(q) ||
-          s.type.toLowerCase().includes(q);
-        return matchLayer && matchQuery;
-      });
+    function updateHeroSub() {
+      if (!SNAPSHOT || !SNAPSHOT.summary) return;
+      const sum = SNAPSHOT.summary;
+      const time = (SNAPSHOT.updatedAt || '').split(' ')[1] || SNAPSHOT.updatedAt || '—';
+      const secs = Math.max(0, Math.round((NEXT_POLL_AT - Date.now()) / 1000));
+      const up = (sum.operational || 0) + (sum.degraded || 0);
+      $('hero-sub').textContent =
+        `${up} de ${sum.total} online · latência média ${fmtMs(sum.avgLatencyMs)} · atualizado às ${time}` +
+        (NEXT_POLL_AT ? ` · próxima em ${secs}s` : '');
+    }
 
-      const groups = {};
-      filtered.forEach(s => {
-        if (!groups[s.layerLabel]) groups[s.layerLabel] = [];
-        groups[s.layerLabel].push(s);
-      });
-
-      const groupKeys = Object.keys(groups);
-      if (groupKeys.length === 0) {
-        container.innerHTML = `
-          <div class="status-card p-8 text-center text-xs text-slate-400">
-            Nenhum serviço corresponde ao filtro pesquisado.
+    function renderDiagnostics() {
+      const diags = SNAPSHOT.diagnostics || [];
+      $('diagnostics').innerHTML = diags.map(d => `
+        <li>
+          <span class="dot ${esc(d.severity)}"></span>
+          <div>
+            <strong>${esc(d.title)}</strong>
+            <span class="muted">${esc(d.summary)}</span>
           </div>
-        `;
+        </li>
+      `).join('');
+    }
+
+    function matchesFilter(s) {
+      const q = FILTER.trim().toLowerCase();
+      if (!q) return true;
+      return [s.name, s.shortName, s.url, s.protocol, s.type]
+        .some(v => String(v || '').toLowerCase().includes(q));
+    }
+
+    function stripLayerNumber(label) {
+      return String(label || '').replace(/^\d+\.\s*/, '');
+    }
+
+    function renderGroups() {
+      const services = SNAPSHOT.services.filter(matchesFilter);
+      if (!services.length) {
+        $('groups').innerHTML = '<div class="empty">Nenhum serviço encontrado.</div>';
         return;
       }
 
-      container.innerHTML = groupKeys.map(label => {
-        const items = groups[label];
-        const upCount = items.filter(i => i.status !== 'outage').length;
-        return `
-          <section class="space-y-3">
-            <div class="flex items-center justify-between border-b border-white/[0.08] pb-1.5">
-              <div class="flex items-center gap-2">
-                <h2 class="font-semibold text-xs sm:text-sm text-white">${label}</h2>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-white/[0.06] text-slate-400">
-                  ${upCount}/${items.length} online
-                </span>
-              </div>
-              <span class="text-[11px] text-slate-400 hidden sm:inline">Clique no card para abrir o painel de inspeção</span>
-            </div>
+      const groups = new Map();
+      services.forEach(s => {
+        if (!groups.has(s.layerLabel)) groups.set(s.layerLabel, []);
+        groups.get(s.layerLabel).push(s);
+      });
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
-              ${items.map(s => renderServiceCard(s)).join('')}
+      $('groups').innerHTML = [...groups.entries()].map(([label, items]) => {
+        const up = items.filter(i => isUp(i.status)).length;
+        return `
+          <section class="group">
+            <div class="group-head">
+              <h2>${esc(stripLayerNumber(label))}</h2>
+              <span class="faint num">${up}/${items.length}</span>
             </div>
+            <div class="list">${items.map(renderRow).join('')}</div>
           </section>
         `;
       }).join('');
     }
 
-    function renderServiceCard(s) {
-      const theme = STATUS_THEME[s.status] || STATUS_THEME.operational;
-      const hist = (s.history || []).slice(-24);
-      const ticksHtml = hist.map(h => {
-        const tTheme = STATUS_THEME[h.status] || STATUS_THEME.operational;
-        return `<span title="${h.ts} • ${h.latencyMs}ms (HTTP ${h.httpCode})" class="sla-tick flex-1 h-3 rounded-[1px] ${tTheme.bar} opacity-80"></span>`;
-      }).join('');
+    function renderTicks(history) {
+      const SLOTS = 30;
+      const hist = (history || []).slice(-SLOTS);
+      const pad = Array(SLOTS - hist.length).fill('<i></i>').join('');
+      const ticks = hist.map(h =>
+        `<i class="${esc(h.status)}" title="${esc(h.ts)} · ${esc(STATUS_TEXT[h.status] || h.status)} · ${esc(h.latencyMs)} ms"></i>`
+      ).join('');
+      return pad + ticks;
+    }
 
+    function renderRow(s) {
+      const version = s.id === 'esus-centralizador-nacional' && s.extraMeta && s.extraMeta.version
+        ? `<span class="tag">v${esc(s.extraMeta.version)}</span>` : '';
       return `
-        <article
-          onclick="openInspectorById('${s.id}')"
-          class="status-card p-4 cursor-pointer flex flex-col justify-between gap-3 group"
-        >
-          <!-- Cabeçalho do Card -->
-          <div class="space-y-1.5">
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-[10px] font-mono text-slate-400 uppercase tracking-wider truncate">${s.protocol}</span>
-              <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium border shrink-0 ${theme.badge}">
-                ${s.statusLabel}
-              </span>
-            </div>
-
-            <div>
-              <h3 class="font-semibold text-xs sm:text-sm text-white group-hover:text-sky-300 transition-colors line-clamp-1" title="${s.name}">
-                ${s.shortName}
-              </h3>
-              <p class="font-mono text-[11px] text-slate-400 truncate mt-0.5" title="${s.url}">${s.url}</p>
-            </div>
-
-            <p class="text-[11px] text-slate-300 line-clamp-2 leading-relaxed">
-              ${s.clinicalImpact}
-            </p>
-          </div>
-
-          <!-- Rodapé do Card com Barra de SLA e Latência -->
-          <div class="space-y-2 pt-2 border-t border-white/[0.06]">
-            <div>
-              <div class="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
-                <span>Disponibilidade: ${s.uptimePct || 100}%</span>
-                <span>HTTP ${s.httpCode || 'ERR'}</span>
-              </div>
-              <div class="flex items-center gap-[2px]">
-                ${ticksHtml}
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between gap-2 pt-0.5">
-              <div>
-                <span class="text-[10px] text-slate-400 font-mono">Latência:</span>
-                <span class="font-mono text-xs font-semibold ${theme.text} tabular-nums ml-1">
-                  ${s.latencyMs} ms
-                </span>
-              </div>
-
-              <div class="flex items-center gap-2">
-                ${buildSparklineSvg(s.history, s.status)}
-                <button
-                  onclick="event.stopPropagation(); quickProbeSingle('${s.id}', this)"
-                  title="Verificar este serviço individualmente"
-                  class="p-1 rounded bg-white/[0.05] hover:bg-sky-500/20 text-slate-300 hover:text-sky-300 border border-white/10 transition-all active:scale-95"
-                >
-                  <svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        </article>
+        <button class="row" onclick="openDrawer('${esc(s.id)}')">
+          <span class="row-name">
+            <span class="dot ${esc(s.status)}"></span>
+            <b title="${esc(s.name)}">${esc(s.shortName)}</b>
+            <span class="tag">${esc(s.protocol)}</span>
+            ${version}
+          </span>
+          <span class="row-meta">
+            <span class="t-${esc(s.status)}">${esc(STATUS_TEXT[s.status] || s.statusLabel)}</span>
+            <span class="lat num muted">${fmtMs(s.latencyMs)}</span>
+          </span>
+          <span class="ticks" aria-hidden="true">${renderTicks(s.history)}</span>
+          <span class="ticks-legend"><span>${(s.history || []).length ? 'histórico recente' : 'sem histórico ainda'}</span><span>${fmtUptime(s.uptimePct)}</span></span>
+        </button>
       `;
     }
 
-    function renderHighDensityTable(services) {
-      const tbody = document.getElementById('high-density-tbody');
-      tbody.innerHTML = services.map(s => {
-        const theme = STATUS_THEME[s.status] || STATUS_THEME.operational;
-        return `
-          <tr onclick="openInspectorById('${s.id}')" class="hover:bg-white/[0.04] cursor-pointer transition-colors">
-            <td class="py-2 px-4">
-              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono border ${theme.badge}">
-                <i class="size-1.5 rounded-full ${theme.dot}"></i>
-                ${s.statusLabel}
-              </span>
-            </td>
-            <td class="py-2 px-4 font-medium text-white">${s.name}</td>
-            <td class="py-2 px-4 text-slate-400 text-[11px]">${s.type}</td>
-            <td class="py-2 px-4 font-mono text-[11px] text-slate-300">${s.protocol}</td>
-            <td class="py-2 px-4 font-mono text-[11px] text-slate-400 truncate max-w-[280px]">${s.url}</td>
-            <td class="py-2 px-4 text-right font-mono tabular-nums text-slate-200">${s.httpCode}</td>
-            <td class="py-2 px-4 text-right font-mono font-semibold tabular-nums ${theme.text}">${s.latencyMs} ms</td>
-            <td class="py-2 px-4 text-center">
-              <button onclick="event.stopPropagation(); quickProbeSingle('${s.id}', this)" class="px-2 py-0.5 rounded bg-white/[0.06] hover:bg-sky-500/20 text-[11px] font-mono text-sky-300">
-                Testar
-              </button>
-            </td>
-          </tr>
-        `;
-      }).join('');
+    function renderTable() {
+      $('table-body').innerHTML = SNAPSHOT.services.map(s => `
+        <tr onclick="openDrawer('${esc(s.id)}')">
+          <td><span style="display:inline-flex;align-items:center;gap:8px"><span class="dot ${esc(s.status)}"></span>${esc(s.shortName)}</span></td>
+          <td class="muted">${esc(s.protocol)}</td>
+          <td class="mono muted"><span class="ell" title="${esc(s.url)}">${esc(s.url)}</span></td>
+          <td class="r num">${esc(s.httpCode || '—')}</td>
+          <td class="r num t-${esc(s.status)}">${fmtMs(s.latencyMs)}</td>
+        </tr>
+      `).join('');
     }
 
-    function openInspectorById(serviceId) {
-      if (!SNAPSHOT || !SNAPSHOT.services) return;
-      const svc = SNAPSHOT.services.find(s => s.id === serviceId);
+    function renderAboutVersion() {
+      const meta = SNAPSHOT.centralizadorMeta || {};
+      $('about-version').textContent = meta.version ? ` (versão atual: v${meta.version})` : '';
+    }
+
+    /* -------------------------------------------------------------------
+       Gaveta
+       ------------------------------------------------------------------- */
+    // Enquanto um painel sobreposto está aberto, o resto da página fica inerte
+    // para o foco não escapar; ao fechar, o foco volta para quem o abriu.
+    let RETURN_FOCUS = null;
+
+    function setPageInert(on) {
+      ['header', 'main', 'footer'].forEach(sel => {
+        document.querySelector(sel).inert = on;
+      });
+    }
+
+    function openDrawer(id) {
+      const svc = SNAPSHOT && SNAPSHOT.services.find(s => s.id === id);
       if (!svc) return;
-      INSPECTED_ID = serviceId;
-      populateInspector(svc);
-      document.getElementById('inspector-backdrop').classList.add('open');
-      document.getElementById('inspector-drawer').classList.add('open');
+      if (!INSPECTED_ID) RETURN_FOCUS = document.activeElement;
+      INSPECTED_ID = id;
+      fillDrawer(svc);
+      setPageInert(true);
+      $('backdrop').classList.add('open');
+      $('drawer').classList.add('open');
+      $('drawer').setAttribute('aria-hidden', 'false');
+      $('d-close').focus();
     }
 
-    function populateInspector(s) {
-      const theme = STATUS_THEME[s.status] || STATUS_THEME.operational;
-      const badge = document.getElementById('insp-badge');
-      badge.className = `px-2 py-0.5 rounded text-[10px] font-mono font-medium uppercase border ${theme.badge}`;
-      badge.textContent = s.statusLabel;
+    function closeDrawer() {
+      if (!INSPECTED_ID) return;
+      INSPECTED_ID = null;
+      setPageInert(false);
+      $('backdrop').classList.remove('open');
+      $('drawer').classList.remove('open');
+      $('drawer').setAttribute('aria-hidden', 'true');
+      if (RETURN_FOCUS && document.contains(RETURN_FOCUS)) RETURN_FOCUS.focus();
+      RETURN_FOCUS = null;
+    }
 
-      document.getElementById('insp-protocol').textContent = `${s.protocol} • ${s.serverHeader || 'Gateway'}`;
-      document.getElementById('insp-title').textContent = s.name;
-      const urlEl = document.getElementById('insp-url');
-      urlEl.textContent = s.url;
-      urlEl.href = s.url.startsWith('http') ? s.url : '#';
-      document.getElementById('insp-btn-open-url').href = s.url.startsWith('http') ? s.url : '#';
+    function fillDrawer(s) {
+      $('d-status').innerHTML = `<span class="dot ${esc(s.status)}"></span><span class="t-${esc(s.status)}">${esc(s.statusLabel)}</span><span class="faint">· ${esc(s.protocol)}</span>`;
+      $('d-title').textContent = s.name;
 
-      document.getElementById('insp-http-code').textContent = s.httpCode || 'ERR';
-      document.getElementById('insp-latency').textContent = `${s.latencyMs} ms`;
-      document.getElementById('insp-uptime').textContent = `${s.uptimePct || 100}%`;
-      document.getElementById('insp-clinical').textContent = s.clinicalImpact || '';
-      document.getElementById('insp-recovery').textContent = s.recoveryHint || '';
+      const href = /^https?:\/\//.test(s.url) ? s.url : '#';
+      $('d-url').textContent = s.url;
+      $('d-url').href = href;
+      $('d-open').href = href;
+      $('d-open').classList.toggle('hidden', href === '#');
 
-      const extraBox = document.getElementById('insp-extra-box');
-      const extraPre = document.getElementById('insp-extra-pre');
-      if (s.extraMeta && Object.keys(s.extraMeta).length > 0) {
-        extraBox.classList.remove('hidden');
-        extraPre.textContent = JSON.stringify(s.extraMeta, null, 2);
-      } else {
-        extraBox.classList.add('hidden');
-      }
+      $('d-http').textContent = s.httpCode || '—';
+      $('d-latency').textContent = fmtMs(s.latencyMs);
+      $('d-uptime').textContent = fmtUptime(s.uptimePct);
+      $('d-impact').textContent = s.clinicalImpact || '';
+      $('d-hint').textContent = s.recoveryHint || '';
 
       let cmd = `curl.exe -sIL "${s.url}"`;
       if (s.url.startsWith('tcp://')) {
-        const hostPort = s.url.replace('tcp://', '').split(':');
-        cmd = `Test-NetConnection -ComputerName ${hostPort[0]} -Port ${hostPort[1]}`;
+        const [host, port] = s.url.replace('tcp://', '').split(':');
+        cmd = `Test-NetConnection -ComputerName ${host} -Port ${port}`;
       }
-      document.getElementById('insp-curl-cmd').textContent = cmd;
+      $('d-cmd').textContent = cmd;
 
-      const headersPre = document.getElementById('insp-headers-pre');
-      if (s.headers && Object.keys(s.headers).length > 0) {
-        headersPre.textContent = Object.entries(s.headers)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join('\n');
-      } else {
-        headersPre.textContent = s.error || 'Conexão direta sem cabeçalhos HTTP.';
-      }
+      const extra = s.extraMeta && Object.keys(s.extraMeta).length ? s.extraMeta : null;
+      $('d-extra-wrap').classList.toggle('hidden', !extra);
+      $('d-extra').textContent = extra ? JSON.stringify(extra, null, 2) : '';
+
+      const headers = s.headers && Object.keys(s.headers).length
+        ? Object.entries(s.headers).map(([k, v]) => `${k}: ${v}`).join('\n')
+        : (s.error || 'Sem cabeçalhos HTTP (conexão TCP direta).');
+      $('d-headers').textContent = headers;
     }
 
-    function closeInspector() {
-      INSPECTED_ID = null;
-      document.getElementById('inspector-backdrop').classList.remove('open');
-      document.getElementById('inspector-drawer').classList.remove('open');
+    async function probeInspected() {
+      if (!INSPECTED_ID) return;
+      const btn = $('d-probe');
+      btn.disabled = true;
+      btn.textContent = 'Verificando…';
+      await probe(INSPECTED_ID);
+      btn.disabled = false;
+      btn.textContent = 'Verificar agora';
     }
 
-    function copyInspectorCommand() {
-      const cmd = document.getElementById('insp-curl-cmd').textContent;
-      navigator.clipboard.writeText(cmd);
-      showToast('Comando copiado!');
+    function copyCommand() {
+      navigator.clipboard.writeText($('d-cmd').textContent)
+        .then(() => showToast('Comando copiado'))
+        .catch(() => showToast('Não foi possível copiar'));
     }
 
-    async function quickProbeSingle(serviceId, btnEl) {
-      if (btnEl) btnEl.classList.add('animate-spin');
-      try {
-        const res = await fetch(`/api/probe/${serviceId}`);
-        const updated = await res.json();
-        if (SNAPSHOT && SNAPSHOT.services) {
-          const idx = SNAPSHOT.services.findIndex(s => s.id === serviceId);
-          if (idx !== -1) SNAPSHOT.services[idx] = updated;
-          renderDashboard(SNAPSHOT);
-        }
-        showToast(`${updated.shortName}: ${updated.statusLabel} (${updated.latencyMs}ms)`);
-      } catch (e) {
-        showToast('Erro ao testar endpoint');
-      } finally {
-        if (btnEl) btnEl.classList.remove('animate-spin');
-      }
+    /* -------------------------------------------------------------------
+       Busca rápida
+       ------------------------------------------------------------------- */
+    function openPalette() {
+      if ($('palette').classList.contains('open')) return;
+      if (!INSPECTED_ID) RETURN_FOCUS = document.activeElement;
+      setPageInert(true);
+      $('palette').classList.add('open');
+      $('palette-input').value = '';
+      renderPalette('');
+      setTimeout(() => $('palette-input').focus(), 30);
     }
 
-    function probeSingleFromInspector() {
-      if (INSPECTED_ID) quickProbeSingle(INSPECTED_ID, null);
+    function closePalette(restoreFocus = true) {
+      if (!$('palette').classList.contains('open')) return;
+      $('palette').classList.remove('open');
+      if (INSPECTED_ID) return;
+      setPageInert(false);
+      if (restoreFocus && RETURN_FOCUS && document.contains(RETURN_FOCUS)) RETURN_FOCUS.focus();
+      if (restoreFocus) RETURN_FOCUS = null;
     }
 
-    function filterByLayer(layer) {
-      ACTIVE_LAYER = layer;
-      document.querySelectorAll('[data-layer-btn]').forEach(btn => {
-        const isCurrent = btn.getAttribute('data-layer-btn') === layer;
-        btn.className = isCurrent
-          ? 'px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-sky-500/20 text-sky-300 border border-sky-400/30'
-          : 'px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] border border-transparent';
-      });
-      if (SNAPSHOT) renderServiceGroups(SNAPSHOT.services || []);
-    }
-
-    function handleInlineSearch(val) {
-      SEARCH_QUERY = val;
-      if (SNAPSHOT) renderServiceGroups(SNAPSHOT.services || []);
-    }
-
-    function switchTab(tab) {
-      ['overview', 'matrix', 'flow', 'about'].forEach(t => {
-        const contentEl = document.getElementById(t === 'about' ? 'about-tab-content' : `view-${t}`);
-        if (contentEl) contentEl.classList.toggle('hidden', t !== tab);
-
-        const btn = document.getElementById(`tab-btn-${t}`);
-        if (btn) {
-          btn.className = (t === tab)
-            ? 'px-3.5 py-1.5 rounded-md text-xs font-medium transition-all bg-white/[0.09] text-white'
-            : 'px-3.5 py-1.5 rounded-md text-xs font-medium transition-all text-slate-400 hover:text-white';
-        }
-      });
-    }
-
-    function openCmdk() {
-      document.getElementById('cmdk-backdrop').classList.add('open');
-      const input = document.getElementById('cmdk-input');
-      input.value = '';
-      renderCmdkResults('');
-      setTimeout(() => input.focus(), 50);
-    }
-
-    function closeCmdk() {
-      document.getElementById('cmdk-backdrop').classList.remove('open');
-    }
-
-    function renderCmdkResults(query) {
-      const box = document.getElementById('cmdk-results');
-      if (!SNAPSHOT || !SNAPSHOT.services) return;
-      const q = (query || '').trim().toLowerCase();
-      const matches = SNAPSHOT.services.filter(s =>
-        !q ||
-        s.name.toLowerCase().includes(q) ||
-        s.shortName.toLowerCase().includes(q) ||
-        s.url.toLowerCase().includes(q) ||
-        s.protocol.toLowerCase().includes(q)
+    function paletteMatches(query) {
+      if (!SNAPSHOT) return [];
+      const q = query.trim().toLowerCase();
+      return SNAPSHOT.services.filter(s =>
+        !q || [s.name, s.shortName, s.url, s.protocol].some(v => String(v || '').toLowerCase().includes(q))
       );
-
-      box.innerHTML = matches.map(s => {
-        const theme = STATUS_THEME[s.status] || STATUS_THEME.operational;
-        return `
-          <div
-            onclick="closeCmdk(); openInspectorById('${s.id}')"
-            class="p-2.5 rounded-lg hover:bg-white/[0.06] cursor-pointer flex items-center justify-between gap-3 transition-colors"
-          >
-            <div class="flex items-center gap-2 min-w-0">
-              <span class="size-2 rounded-full shrink-0 ${theme.dot}"></span>
-              <div class="min-w-0">
-                <div class="text-xs font-medium text-white truncate">${s.name}</div>
-                <div class="text-[11px] font-mono text-slate-400 truncate">${s.url}</div>
-              </div>
-            </div>
-            <div class="flex items-center gap-2 shrink-0">
-              <span class="px-1.5 py-0.5 rounded text-[10px] font-mono border ${theme.badge}">${s.statusLabel}</span>
-              <span class="font-mono text-xs text-slate-300 tabular-nums">${s.latencyMs}ms</span>
-            </div>
-          </div>
-        `;
-      }).join('');
     }
 
-    function exportTelemetryJson() {
+    function renderPalette(query) {
+      PALETTE_INDEX = 0;
+      const matches = paletteMatches(query);
+      $('palette-results').innerHTML = matches.length
+        ? matches.map((s, i) => `
+          <button class="${i === 0 ? 'active' : ''}" onclick="pickPalette('${esc(s.id)}')">
+            <span class="dot ${esc(s.status)}"></span>
+            <span class="grow">${esc(s.name)}</span>
+            <span class="num muted">${fmtMs(s.latencyMs)}</span>
+          </button>
+        `).join('')
+        : '<div class="empty" style="border:0">Nenhum resultado</div>';
+    }
+
+    function paletteKey(e) {
+      const items = [...$('palette-results').querySelectorAll('button')];
+      if (!items.length) return;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        items[PALETTE_INDEX].classList.remove('active');
+        PALETTE_INDEX = (PALETTE_INDEX + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        items[PALETTE_INDEX].classList.add('active');
+        items[PALETTE_INDEX].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        items[PALETTE_INDEX].click();
+      }
+    }
+
+    function pickPalette(id) {
+      closePalette();
+      openDrawer(id);
+    }
+
+    /* -------------------------------------------------------------------
+       Navegação, filtro, tema, exportação
+       ------------------------------------------------------------------- */
+    function switchTab(tab) {
+      ['services', 'table', 'about'].forEach(t => {
+        $(`view-${t}`).classList.toggle('hidden', t !== tab);
+      });
+      document.querySelectorAll('nav.tabs button').forEach(b => {
+        b.setAttribute('aria-selected', String(b.dataset.tab === tab));
+      });
+    }
+
+    function setFilter(value) {
+      FILTER = value;
+      if (SNAPSHOT) renderGroups();
+    }
+
+    function toggleTheme() {
+      const root = document.documentElement;
+      const current = root.dataset.theme ||
+        (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      const next = current === 'dark' ? 'light' : 'dark';
+      root.dataset.theme = next;
+      try { localStorage.setItem('status-sus-theme', next); } catch (e) {}
+    }
+
+    function exportJson() {
       if (!SNAPSHOT) return;
       const blob = new Blob([JSON.stringify(SNAPSHOT, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = `status-sus-telemetria-${Date.now()}.json`;
+      a.href = URL.createObjectURL(blob);
+      a.download = `status-sus-${Date.now()}.json`;
       a.click();
-      showToast('Arquivo JSON gerado com sucesso!');
-    }
-
-    function updatePollInterval(msStr) {
-      if (POLL_TIMER) clearInterval(POLL_TIMER);
-      const ms = parseInt(msStr, 10);
-      if (ms > 0) {
-        POLL_TIMER = setInterval(() => triggerFullScan(true), ms);
-        showToast(`Intervalo de varredura: ${ms / 1000}s`);
-      } else {
-        showToast('Modo Manual (sem varredura automática)');
-      }
+      URL.revokeObjectURL(a.href);
     }
 
     window.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        openCmdk();
+        openPalette();
       } else if (e.key === 'Escape') {
-        closeCmdk();
-        closeInspector();
+        closePalette();
+        closeDrawer();
       }
     });
 
-    window.addEventListener('DOMContentLoaded', () => {
-      triggerFullScan(false);
-      POLL_TIMER = setInterval(() => triggerFullScan(true), 30000);
-    });
+    try {
+      const saved = localStorage.getItem('status-sus-theme');
+      if (saved) document.documentElement.dataset.theme = saved;
+    } catch (e) {}
+
+    refresh(false);
+    setInterval(() => {
+      if (document.hidden) return;
+      if (Date.now() >= NEXT_POLL_AT) refresh(false);
+      else updateHeroSub();
+    }, 1000);
   </script>
 </body>
 </html>
